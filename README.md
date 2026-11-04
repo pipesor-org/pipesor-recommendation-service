@@ -13,7 +13,7 @@ This repository contains the initial development guidance only. Application code
 - [Deployment contract](docs/deployment-contract.md): PD-035 readiness and unresolved delivery requirements.
 - [Optional Codex configuration](.codex/config.toml) and service-specific `diagnostic_reviewer` in [.codex/agents/diagnostic-reviewer.toml](.codex/agents/diagnostic-reviewer.toml).
 
-Keep an accessible `pipesor-docs` checkout beside this repository, or use the pinned GitHub links in the architecture guide. No submodule, copied model or architecture-generation dependency is required. Before implementation, read the source instructions and applicable models/ADRs at the recorded revision and account for the separately identified local overlay.
+In the Pipesor workspace, this repository lives under `services/`; the architecture checkout is at `../../pipesor-docs/` relative to this repository root. Use that accessible checkout or the pinned GitHub links in the architecture guide. No submodule, copied model or architecture-generation dependency is required. Before implementation, read the source instructions and applicable models/ADRs at the recorded revision and account for the separately identified local overlay.
 
 ## Contributing and verification
 

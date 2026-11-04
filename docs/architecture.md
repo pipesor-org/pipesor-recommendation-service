@@ -14,7 +14,7 @@ Consulted on 2026-11-04: `pipesor-org/pipesor-docs` full Git SHA **`c0871ac9a62b
 
 The local source checkout has relevant changes **outside the SHA above**:
 
-| File in sibling `../pipesor-docs/` | Git state | SHA-256 of consulted working file |
+| File in `../../pipesor-docs/` (from repository root) | Git state | SHA-256 of consulted working file |
 |---|---|---|
 | `docs/architecture/pending-decisions.md` | Modified tracked file; stage-5 extension adds PD-033–036 and contract approval authority | `3e153d9a467cef72caa937fc2b2e2e7642ebcbee1f98465edc8951df8c799c42` |
 | `docs/architecture/stage-5-result.md` | Untracked descriptive stage-5 report with local reconciliation | `1a1228c6869cbe602ff78c0ba0c87466db4b6c7cc9d3500f6b6c3e9e7d86d6a0` |
