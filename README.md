@@ -1,24 +1,37 @@
 # pipesor-recommendation-service
 
-Orchestrate assisted diagnosis with correlated context, authorized RAG knowledge and external LLM inference; compose probable-cause output and own human review.
+Diagnostic & Recommendation Service orchestrates assisted diagnosis from correlated evidence, authorized RAG knowledge and external LLM inference. It composes probable-cause output and owns human review. Its canonical architecture ID is `recommendation_service`; the planned runtime is Java / Spring Boot on Azure Container Apps.
 
-Canonical architecture ID: `recommendation_service`. Independent backend container on Azure Container Apps; approved runtime: **Java / Spring Boot**, versions pending PD-032.
+This repository currently contains documentation and optional Codex configuration. Application code, a Maven project, tests, container images and release automation have not been implemented.
 
-This repository contains the initial development guidance only. Application code, endpoints, build tooling, images and infrastructure have not been implemented.
+## Documentation
 
-## Start here
+- [Documentation baseline](docs/documentation-baseline.md): audited source revisions, evidence limits and adoption after merge.
 
-- [Agent instructions](AGENTS.md): responsibilities, workflow and checks.
-- [Architecture consumption](docs/architecture.md): consulted revision, current sources, service boundaries, relationships and source limitations.
-- [Deployment contract](docs/deployment-contract.md): PD-035 readiness and unresolved delivery requirements.
-- [Optional Codex configuration](.codex/config.toml) and service-specific `diagnostic_reviewer` in [.codex/agents/diagnostic-reviewer.toml](.codex/agents/diagnostic-reviewer.toml).
+- [Architecture](docs/architecture.md): service boundaries, integration context and current sources in `pipesor-docs`.
+- [Deployment contract](docs/deployment-contract.md): development baseline, delivery requirements and unresolved contracts.
+- [AGENTS.md](AGENTS.md): repository instructions for coding agents.
 
-In the Pipesor workspace, this repository lives under `services/`; the architecture checkout is at `../../pipesor-docs/` relative to this repository root. Use that accessible checkout or the current GitHub links in the architecture guide. No submodule, copied model or architecture-generation dependency is required. Before implementation, read the source instructions and applicable models/ADRs at the current revision, record what was consulted, and account for the separately identified local overlay.
+## Development and verification
 
-## Contributing and verification
+The [development baseline](docs/deployment-contract.md#development-baseline) records the selected toolchain and dependency policy. There is no application startup, build or test command yet. The first implementation must document its Maven commands here after verifying them.
 
-Follow the [organization contribution policy](https://github.com/pipesor-org/.github/blob/main/CONTRIBUTING.md), [code of conduct](https://github.com/pipesor-org/.github/blob/main/CODE_OF_CONDUCT.md) and [security policy](https://github.com/pipesor-org/.github/blob/main/SECURITY.md). Use short-lived `feature/<topic>` or `fix/<topic>` branches from `main`, English Angular-style Conventional Commits and reviewed squash PRs. Do not push directly to `main`. GitHub's initial README establishes the empty repository baseline; the development structure is submitted by PR. No release or deployment automation is configured. Licensing remains pending.
+For the current documentation foundation, check affected links and consistency with the referenced sources, then run:
 
-For this documentation/configuration foundation, review source coherence and links, parse the TOML files and run `git diff --check`. No application build/test command exists yet. Add only the tooling and meaningful behavior checks required by the first approved implementation.
+```bash
+git diff --check
+```
 
-Codex discovers the repository-local specialist in trusted projects; it inherits the caller's model, permissions and tools. The main session handles implementation and may request the focused reviewer when relevant. No global setup or extra MCP server is needed. Configuration follows [official OpenAI subagent documentation](https://learn.chatgpt.com/docs/agent-configuration/subagents). Restart sessions after configuration changes; parse/startup checks do not prove live agent execution.
+For TOML configuration changes, run this syntax check with Python 3.11+ (the selected Python baseline supports `tomllib`):
+
+```bash
+python3 -c 'from pathlib import Path; import tomllib; [tomllib.loads(p.read_text()) for p in Path(".codex").rglob("*.toml")]; print("TOML syntax OK")'
+```
+
+Follow the organization [contribution policy](https://github.com/pipesor-org/.github/blob/main/CONTRIBUTING.md), [code of conduct](https://github.com/pipesor-org/.github/blob/main/CODE_OF_CONDUCT.md) and [security policy](https://github.com/pipesor-org/.github/blob/main/SECURITY.md). Licensing remains pending.
+
+## Optional Codex setup
+
+Start Codex from this repository root so its [repository instructions](AGENTS.md) are discovered. Project configuration is in [.codex/config.toml](.codex/config.toml); [diagnostic_reviewer](.codex/agents/diagnostic-reviewer.toml) defines a focused reviewer. Review roles do not create separate sandbox permissions.
+
+After changing instructions, start a fresh session and ask it to identify its active instruction sources. See the official [instruction-discovery guide](https://learn.chatgpt.com/docs/agent-configuration/agents-md) and [subagent guide](https://learn.chatgpt.com/docs/agent-configuration/subagents). A successful TOML parse alone does not establish live discovery or reviewer execution.
