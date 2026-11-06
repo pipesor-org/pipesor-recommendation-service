@@ -5,7 +5,7 @@ Read [README.md](README.md), [architecture consumption](docs/architecture.md) an
 ## Scope and authority
 
 - Own `recommendation_service`: Orchestrate assisted diagnosis with correlated context, authorized RAG knowledge and external LLM inference; compose probable-cause output and own human review.
-- Use the pinned `pipesor-docs` sources and its AGENTS.md, relevant model IDs/invariants and applicable Accepted ADRs. Record revision updates explicitly; inspect dirty source changes separately. Architecture remains draft; confirmed does not mean implemented, proposed classes/API examples do not approve contracts, and assumptions remain assumptions.
+- Use the current `pipesor-docs` sources and its AGENTS.md, relevant model IDs/invariants and applicable Accepted ADRs. Record the revision consulted; inspect dirty source changes separately. Architecture remains draft; confirmed does not mean implemented, proposed classes/API examples do not approve contracts, and assumptions remain assumptions.
 - Preserve ADR-018 boundaries: Java / Spring Boot, lightweight DDD where appropriate, logical CQRS, one physical PostgreSQL instance, exclusive owned-table writes, no cross-schema FK/ORM navigation and no Event Sourcing. Do not create artificial domain layers before code needs them.
 - Never resolve pending decisions, choose unspecified versions/models or add relationships to fill a deployment gap. Report conflicts and seek an authorized decision in the architecture owner repository.
 - This increment authorizes documentation and agent setup only. Future endpoints, business behavior, contracts, build tooling and infrastructure need their own agreed scope. Never change neighboring repositories, global configuration, credentials or infrastructure as a side effect.

@@ -9,11 +9,11 @@ This repository contains the initial development guidance only. Application code
 ## Start here
 
 - [Agent instructions](AGENTS.md): responsibilities, workflow and checks.
-- [Architecture consumption](docs/architecture.md): pinned revision, service boundaries, relationships and source limitations.
+- [Architecture consumption](docs/architecture.md): consulted revision, current sources, service boundaries, relationships and source limitations.
 - [Deployment contract](docs/deployment-contract.md): PD-035 readiness and unresolved delivery requirements.
 - [Optional Codex configuration](.codex/config.toml) and service-specific `diagnostic_reviewer` in [.codex/agents/diagnostic-reviewer.toml](.codex/agents/diagnostic-reviewer.toml).
 
-In the Pipesor workspace, this repository lives under `services/`; the architecture checkout is at `../../pipesor-docs/` relative to this repository root. Use that accessible checkout or the pinned GitHub links in the architecture guide. No submodule, copied model or architecture-generation dependency is required. Before implementation, read the source instructions and applicable models/ADRs at the recorded revision and account for the separately identified local overlay.
+In the Pipesor workspace, this repository lives under `services/`; the architecture checkout is at `../../pipesor-docs/` relative to this repository root. Use that accessible checkout or the current GitHub links in the architecture guide. No submodule, copied model or architecture-generation dependency is required. Before implementation, read the source instructions and applicable models/ADRs at the current revision, record what was consulted, and account for the separately identified local overlay.
 
 ## Contributing and verification
 
