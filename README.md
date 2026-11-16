@@ -2,7 +2,10 @@
 
 Diagnostic & Recommendation Service orchestrates assisted diagnosis from correlated evidence, authorized RAG knowledge and external LLM inference. It composes probable-cause output and owns human review. Its canonical architecture ID is `recommendation_service`; the planned runtime is Java / Spring Boot on Azure Container Apps.
 
-This repository currently contains documentation and optional Codex configuration. Application code, a Maven project, tests, container images and release automation have not been implemented.
+The first executable increment provides the Java / Spring Boot foundation and the
+internal Recommendation → RAG v1 client. It preserves verified authorization scope,
+correlation context and source provenance. Diagnostic inference, persistence, public
+API endpoints, container images and release automation are not implemented yet.
 
 ## Documentation
 
@@ -14,7 +17,23 @@ This repository currently contains documentation and optional Codex configuratio
 
 ## Development and verification
 
-The [development baseline](docs/deployment-contract.md#development-baseline) records the selected toolchain and dependency policy. There is no application startup, build or test command yet. The first implementation must document its Maven commands here after verifying them.
+The [development baseline](docs/deployment-contract.md#development-baseline) records the selected toolchain and dependency policy. The current project targets Java 21 and pins Spring Boot 4.1.2. Run the verified checks with:
+
+```bash
+./mvnw verify
+```
+
+On Windows:
+
+```powershell
+.\mvnw.cmd verify
+```
+
+The application requires `PIPESOR_RAG_ENDPOINT` and `PIPESOR_RAG_AUDIENCE`.
+The endpoint must use HTTPS and the audience has the form `api://<application-id>`.
+`PIPESOR_RAG_TIMEOUT` is optional and cannot exceed the approved 15-second budget.
+Authentication uses `DefaultAzureCredential`; no credentials belong in configuration
+files. Starting the application does not yet expose a diagnostic API.
 
 For the current documentation foundation, check affected links and consistency with the referenced sources, then run:
 

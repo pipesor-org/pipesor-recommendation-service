@@ -25,7 +25,7 @@ Historical IaC text still describes the older docs overlay as unavailable; the c
 
 ## Verification and adoption
 
-The audit checks the actual documented commands in [README](../README.md#development-and-verification), local links/anchors, referenced source paths, model relationship IDs, owned-table assignments, agent TOML syntax and Git diffs. Application startup/build/test commands are intentionally absent because no application manifests, code, tests or images exist in this service revision. Do not interpret a documentation check as application or cloud validation.
+The historical baseline audit checked local documentation only. The README now owns the verified Maven command for the first executable Recommendation → RAG client increment. Its mocked contract tests establish local serialization and failure behavior, not live RAG, Entra, Azure or cloud validation.
 
 The repository is private with `main` as default and squash-only merges enabled. Ruleset inspection returned HTTP 403 with a plan-upgrade requirement; human review and no direct pushes remain contribution rules, not certified server-side enforcement. Publish this candidate through a dedicated branch and reviewed PR; do not merge without explicit authorization. After integration, record the resulting merge commit in implementation handoffs. Consumer agents must use integrated service revisions, not assume that another local worktree or open PR supplies an approved baseline.
 

@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: pipesor-recommendation-service
+
+pipesor:
+  rag:
+    endpoint: ${PIPESOR_RAG_ENDPOINT}
+    audience: ${PIPESOR_RAG_AUDIENCE}
+    timeout: ${PIPESOR_RAG_TIMEOUT:15s}

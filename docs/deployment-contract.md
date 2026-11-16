@@ -2,7 +2,7 @@
 
 **Status: readiness record; not approved for IaC consumption or deployment.** Prepared for PD-035. [Architecture consumption](architecture.md) records the consulted source revision `c84ef3e4629fcb0c38315f32b641a5fb949e450d`, model IDs, applicable ADRs and committed PD-033–036. ADR-019 governs the current MVP alignment.
 
-**Documented fact** means recorded in those sources/policies, not proven implementation or independent approval evidence. **Proposal** requires acceptance; **Unknown** remains pending. No application images, endpoints, credentials or migrations are implemented in this service increment. IaC contains infrastructure preparation; provisioning is not evidenced here.
+**Documented fact** means recorded in those sources/policies, not proven implementation or independent approval evidence. **Proposal** requires acceptance; **Unknown** remains pending. The first application increment implements only the Spring Boot foundation and the internal Recommendation → RAG v1 client. No application image, diagnostic endpoint, credential or migration is implemented. IaC contains infrastructure preparation; provisioning is not evidenced here.
 
 ## Identity and runtime
 
@@ -16,7 +16,7 @@
 
 User direction recorded on 2026-11-06 retains the installed Java 25.0.4.1, Python 3.14.8, Docker 29.9.3 and Git 2.55.0. Java services use Maven (installed: 3.10.0); Azure CLI 2.92.0 is available for separately authorized operations. Select the latest stable dependency versions compatible with that baseline, and pin them when application build/dependency files are introduced. Framework and transitive dependency compatibility must be checked together; availability on this workstation is not container/CI verification. Python dependencies belong in isolated project environments.
 
-This session direction supplements the consulted architecture revision; it does not close PD-032's identity/hash choices or PD-035's base-image and delivery requirements. No application build files are introduced by this documentation update.
+This session direction supplements the consulted architecture revision; it does not close PD-032's identity/hash choices or PD-035's base-image and delivery requirements. The executable increment pins Java 21, Spring Boot 4.1.2 and Azure Identity 1.18.1 based on the toolchain actually available for verification; changing the deployment baseline remains separately reviewable.
 
 ## Integrated infrastructure baseline
 
@@ -58,7 +58,7 @@ Documented fact: Documented synchronous REST/HTTPS context from correlation and 
 | Secret/authentication requirements | Foundry Entra-only access is selected for the managed foundation; exact inference grants, PostgreSQL/internal-call authentication material and suppliers are unspecified (PD-027/035). Human/API authorization and workflow access remain pending PD-007/034/036; the read-only GitHub App does not authorize workflow API access. | Unknown except explicitly documented mechanisms; PD-027/035. Secret storage is intentionally undecided. |
 | Delivery of values | Proposed: backend maintainers define/validate the required configuration interface; the authorized environment/integration owners supply approved values through the agreed IaC handoff. | Proposal, PD-035; specific people/teams, rotation and distribution mechanism remain unknown. |
 
-No application environment-variable names, credentials, secret store or runtime defaults are approved by this document. The system-assigned ACA identity lifecycle is selected in IaC; its creation, access grants and user/workflow authentication remain separate requirements.
+The RAG v1 client consumes `PIPESOR_RAG_ENDPOINT`, `PIPESOR_RAG_AUDIENCE` and the optional `PIPESOR_RAG_TIMEOUT` configuration described in the README. It obtains an app-only token through `DefaultAzureCredential`; credentials are not application settings. Other application configuration, secret storage and runtime defaults remain unresolved. The system-assigned ACA identity lifecycle is selected in IaC; its creation, access grants and user/workflow authentication remain separate requirements.
 
 ## Access and integration
 
