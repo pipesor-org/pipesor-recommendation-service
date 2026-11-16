@@ -15,43 +15,164 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.time.Duration;
+import java.time.Clock;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.LongSupplier;
 
 public final class RestRagKnowledgeRetriever implements RagKnowledgeRetriever {
     static final String QUERY_PATH = "/internal/v1/retrieval/query";
+    public static final int MAX_RETRIES = 2;
     private final RestClient client;
     private final RagAccessTokenProvider tokenProvider;
+    private final Duration totalBudget;
+    private final LongSupplier nanoTime;
+    private final RetryDelay retryDelay;
+    private final Clock wallClock;
 
     public RestRagKnowledgeRetriever(RestClient.Builder builder, RagClientProperties properties,
                                      RagAccessTokenProvider tokenProvider) {
+        this(builder, properties, tokenProvider, System::nanoTime, Thread::sleep, Clock.systemUTC());
+    }
+
+    RestRagKnowledgeRetriever(RestClient.Builder builder, RagClientProperties properties,
+                              RagAccessTokenProvider tokenProvider, LongSupplier nanoTime,
+                              RetryDelay retryDelay) {
+        this(builder, properties, tokenProvider, nanoTime, retryDelay, Clock.systemUTC());
+    }
+
+    RestRagKnowledgeRetriever(RestClient.Builder builder, RagClientProperties properties,
+                              RagAccessTokenProvider tokenProvider, LongSupplier nanoTime,
+                              RetryDelay retryDelay, Clock wallClock) {
         this.client = builder.baseUrl(properties.endpoint().toString()).build();
         this.tokenProvider = tokenProvider;
+        this.totalBudget = properties.timeout();
+        this.nanoTime = nanoTime;
+        this.retryDelay = retryDelay;
+        this.wallClock = wallClock;
     }
 
     @Override
     public RetrievalResult retrieve(RetrievalQuery query) {
+        long deadline = saturatedAdd(nanoTime.getAsLong(), totalBudget.toNanos());
+        String accessToken;
         try {
-            var response = client.post()
-                    .uri(QUERY_PATH)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenProvider.accessToken())
-                    .header("X-Correlation-ID", query.correlationId())
-                    .body(Request.from(query))
-                    .retrieve()
-                    .onStatus(status -> status.value() == 401 || status.value() == 403 || status.value() == 422,
-                            (request, responseStatus) -> {
-                                throw new RagContractException("RAG rejected the request with status "
-                                        + responseStatus.getStatusCode().value());
-                            })
-                    .onStatus(HttpStatusCode::is5xxServerError, (request, responseStatus) -> {
-                        throw new RagUnavailableException("RAG is unavailable", null);
-                    })
-                    .body(Response.class);
-            return toResult(query, response);
-        } catch (RagContractException | RagUnavailableException exception) {
-            throw exception;
-        } catch (RestClientException exception) {
-            throw new RagUnavailableException("RAG request failed", exception);
+            accessToken = tokenProvider.accessToken();
+        } catch (RuntimeException exception) {
+            throw new RagUnavailableException("Unable to acquire the RAG access token", exception);
+        }
+
+        for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+            ensureBudget(deadline, null);
+            try {
+                var response = execute(query, accessToken);
+                return toResult(query, response);
+            } catch (RagContractException exception) {
+                throw exception;
+            } catch (TransientRagException | RestClientException exception) {
+                if (attempt == MAX_RETRIES) {
+                    throw new RagUnavailableException("RAG remained unavailable after retries", exception);
+                }
+                var retryAfter = exception instanceof TransientRagException transientFailure
+                        ? transientFailure.retryAfter()
+                        : Duration.ZERO;
+                waitBeforeRetry(deadline, retryAfter, exception);
+            }
+        }
+        throw new IllegalStateException("unreachable retry state");
+    }
+
+    private Response execute(RetrievalQuery query, String accessToken) {
+        return client.post()
+                .uri(QUERY_PATH)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                .header("X-Correlation-ID", query.correlationId())
+                .body(Request.from(query))
+                .retrieve()
+                .onStatus(status -> status.value() == 401 || status.value() == 403 || status.value() == 422,
+                        (request, responseStatus) -> {
+                            throw new RagContractException("RAG rejected the request with status "
+                                    + responseStatus.getStatusCode().value());
+                        })
+                .onStatus(status -> status.value() == 429 || status.is5xxServerError(),
+                        (request, responseStatus) -> {
+                            throw new TransientRagException(
+                                    retryAfter(responseStatus.getHeaders().getFirst("Retry-After")));
+                        })
+                .body(Response.class);
+    }
+
+    private void waitBeforeRetry(long deadline, Duration requestedDelay, RuntimeException cause) {
+        long remaining = deadline - nanoTime.getAsLong();
+        if (remaining <= 0 || safeNanos(requestedDelay) >= remaining) {
+            throw new RagUnavailableException("RAG retry budget is exhausted", cause);
+        }
+        try {
+            retryDelay.sleep(requestedDelay.toMillis());
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new RagUnavailableException("RAG retry was interrupted", exception);
+        }
+        ensureBudget(deadline, cause);
+    }
+
+    private void ensureBudget(long deadline, RuntimeException cause) {
+        if (nanoTime.getAsLong() >= deadline) {
+            throw new RagUnavailableException("RAG request exceeded the total time budget", cause);
+        }
+    }
+
+    private Duration retryAfter(String value) {
+        if (value == null) {
+            return Duration.ZERO;
+        }
+        try {
+            long seconds = Long.parseLong(value);
+            return seconds < 0 ? Duration.ZERO : Duration.ofSeconds(seconds);
+        } catch (NumberFormatException ignored) {
+            try {
+                var retryAt = ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant();
+                var delay = Duration.between(wallClock.instant(), retryAt);
+                return delay.isNegative() ? Duration.ZERO : delay;
+            } catch (RuntimeException invalidDate) {
+                return Duration.ZERO;
+            }
+        }
+    }
+
+    private static long saturatedAdd(long left, long right) {
+        try {
+            return Math.addExact(left, right);
+        } catch (ArithmeticException ignored) {
+            return Long.MAX_VALUE;
+        }
+    }
+
+    private static long safeNanos(Duration duration) {
+        try {
+            return duration.toNanos();
+        } catch (ArithmeticException ignored) {
+            return Long.MAX_VALUE;
+        }
+    }
+
+    @FunctionalInterface
+    interface RetryDelay {
+        void sleep(long milliseconds) throws InterruptedException;
+    }
+
+    private static final class TransientRagException extends RuntimeException {
+        private final Duration retryAfter;
+
+        private TransientRagException(Duration retryAfter) {
+            this.retryAfter = retryAfter;
+        }
+
+        private Duration retryAfter() {
+            return retryAfter;
         }
     }
 

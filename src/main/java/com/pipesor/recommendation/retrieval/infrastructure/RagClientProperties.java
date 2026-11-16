@@ -20,8 +20,8 @@ public record RagClientProperties(
         if (endpoint == null || !"https".equalsIgnoreCase(endpoint.getScheme())) {
             throw new IllegalArgumentException("pipesor.rag.endpoint must be an HTTPS URI");
         }
-        if (timeout.isNegative() || timeout.isZero() || timeout.compareTo(Duration.ofSeconds(15)) > 0) {
-            throw new IllegalArgumentException("pipesor.rag.timeout must be between 1 ms and 15 seconds");
+        if (timeout.compareTo(Duration.ofMillis(3)) < 0 || timeout.compareTo(Duration.ofSeconds(15)) > 0) {
+            throw new IllegalArgumentException("pipesor.rag.timeout must be between 3 ms and 15 seconds");
         }
     }
 }

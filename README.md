@@ -33,7 +33,9 @@ The application requires `PIPESOR_RAG_ENDPOINT` and `PIPESOR_RAG_AUDIENCE`.
 The endpoint must use HTTPS and the audience has the form `api://<application-id>`.
 `PIPESOR_RAG_TIMEOUT` is optional and cannot exceed the approved 15-second budget.
 Authentication uses `DefaultAzureCredential`; no credentials belong in configuration
-files. Starting the application does not yet expose a diagnostic API.
+files. The client performs at most two retries for transport errors, `429` and `5xx`
+responses, respects `Retry-After`, and never retries authentication, authorization or
+validation rejection. Starting the application does not yet expose a diagnostic API.
 
 For the current documentation foundation, check affected links and consistency with the referenced sources, then run:
 

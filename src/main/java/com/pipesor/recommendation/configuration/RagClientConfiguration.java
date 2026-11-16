@@ -10,6 +10,7 @@ import com.pipesor.recommendation.retrieval.infrastructure.RestRagKnowledgeRetri
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 @Configuration(proxyBeanMethods = false)
@@ -26,8 +27,13 @@ class RagClientConfiguration {
     }
 
     @Bean
-    RagKnowledgeRetriever ragKnowledgeRetriever(RestClient.Builder builder, RagClientProperties properties,
+    RagKnowledgeRetriever ragKnowledgeRetriever(RagClientProperties properties,
                                                 RagAccessTokenProvider tokenProvider) {
+        var requestFactory = new SimpleClientHttpRequestFactory();
+        var perAttemptTimeout = properties.timeout().dividedBy(RestRagKnowledgeRetriever.MAX_RETRIES + 1L);
+        requestFactory.setConnectTimeout(perAttemptTimeout);
+        requestFactory.setReadTimeout(perAttemptTimeout);
+        var builder = RestClient.builder().requestFactory(requestFactory);
         return new RestRagKnowledgeRetriever(builder, properties, tokenProvider);
     }
 }
