@@ -2,7 +2,7 @@
 
 **Status: readiness record; not approved for IaC consumption or deployment.** Prepared for PD-035. [Architecture consumption](architecture.md) records the consulted source revision `c84ef3e4629fcb0c38315f32b641a5fb949e450d`, model IDs, applicable ADRs and committed PD-033–036. ADR-019 governs the current MVP alignment.
 
-**Documented fact** means recorded in those sources/policies, not proven implementation or independent approval evidence. **Proposal** requires acceptance; **Unknown** remains pending. The first application increment implements only the Spring Boot foundation and the internal Recommendation → RAG v1 client. No application image, diagnostic endpoint, credential or migration is implemented. IaC contains infrastructure preparation; provisioning is not evidenced here.
+**Documented fact** means recorded in those sources/policies, not proven implementation or independent approval evidence. **Proposal** requires acceptance; **Unknown** remains pending. The Spring Boot foundation and internal Recommendation → RAG v1 client are joined by an isolated durable Correlation receipt implementation. Its route and migration require explicit composition. See the [receipt verification and activation boundary](../README.md#durable-correlation-receipts). IaC contains infrastructure preparation; provisioning is not evidenced here.
 
 ## Identity and runtime
 

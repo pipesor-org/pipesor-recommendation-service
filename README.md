@@ -4,8 +4,10 @@ Diagnostic & Recommendation Service orchestrates assisted diagnosis from correla
 
 The first executable increment provides the Java / Spring Boot foundation and the
 internal Recommendation → RAG v1 client. It preserves verified authorization scope,
-correlation context and source provenance. Diagnostic inference, persistence, public
-API endpoints, container images and release automation are not implemented yet.
+correlation context and source provenance. The Correlation receipt increment adds
+an explicitly composed internal HTTP route and durable context storage.
+Diagnostic inference, public API endpoints, container images and release
+automation remain outside this increment.
 
 ## Documentation
 
@@ -36,6 +38,33 @@ Authentication uses `DefaultAzureCredential`; no credentials belong in configura
 files. The client performs at most two retries for transport errors, `429` and `5xx`
 responses, respects `Retry-After`, and never retries authentication, authorization or
 validation rejection. Starting the application does not yet expose a diagnostic API.
+
+### Durable Correlation receipts
+
+`ReceiptEndpoint.routes` composes the approved internal v1 route with an explicit
+data source, request byte limit and current-authority verifier. The verifier must
+check the caller, resource scope and logical references before the route reads
+or writes a receipt. The normal application composition does not register
+this route. Its live authority, resource limits and timeout policy are still pending.
+
+V1 creates only `diagnosis.correlated_context_receipts` and its guards, following
+[DD-024 and its scope/signals supplement](https://github.com/pipesor-org/pipesor-docs/blob/main/model/domain_decisions.md#DD-024).
+Run it through an authorized Flyway runner with `diagnosis` as the default schema.
+An existing receipt table needs a separately verified migration path. The
+application does not automatically run this migration. Upstream identifiers remain
+logical references.
+
+The receiver computes the approved canonical fingerprint and commits the scope,
+context and ordered signals before returning `accepted`. A matching replay
+returns `duplicate` without changing the committed receipt. A different accepted
+representation under the same operation ID returns `409`. Neither result
+represents a diagnosis.
+
+`./mvnw -B verify` ran 14 tests with Java 25 compiling to release 21, an
+embedded loopback HTTP server and disposable PostgreSQL 17.11. Coverage includes
+receipt recovery, authorization before duplicate disclosure, exact stored signals,
+concurrent insertion, commit failure, malformed or oversized requests and
+immutable receipts. Tests inject synthetic authority and request bounds.
 
 For the current documentation foundation, check affected links and consistency with the referenced sources, then run:
 
