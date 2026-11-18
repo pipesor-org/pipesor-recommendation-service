@@ -1,0 +1,134 @@
+{
+  "state": "synthetic-proposed-reference-vectors-not-service-execution",
+  "fixtures": [
+    {
+      "name": "a",
+      "headers": {
+        "Idempotency-Key": "00000000-0000-0000-0000-000000000101",
+        "X-Correlation-ID": "corr-r1"
+      },
+      "submission": {
+        "contract_version": "1.0",
+        "operation_id": "00000000-0000-0000-0000-000000000101",
+        "authorization_scope": {
+          "tenant_id": "00000000-0000-0000-0000-000000000901",
+          "github_installation_id": "123",
+          "github_repository_id": "456",
+          "pipeline_id": "00000000-0000-0000-0000-000000000401",
+          "scope_revision": "scope-12"
+        },
+        "context": {
+          "id": "00000000-0000-0000-0000-000000000101",
+          "incident_id": "00000000-0000-0000-0000-000000000201",
+          "execution_id": "00000000-0000-0000-0000-000000000301",
+          "evidence_ids": [
+            "00000000-0000-0000-0000-000000000501"
+          ],
+          "summary": "Synthetic protected operational context",
+          "correlation_id": "corr-r1",
+          "created_at": "2026-11-17T10:00:00.000001Z"
+        },
+        "signals": [
+          {
+            "evidence_id": "00000000-0000-0000-0000-000000000501",
+            "origin_context_id": "00000000-0000-0000-0000-000000000101",
+            "correlation_id": "corr-r1",
+            "stage": "BUILD",
+            "summary": "Synthetic build failure",
+            "content": "Protected résumé α: dependency \"example\" unavailable\npath C:\\synthetic\tend"
+          }
+        ]
+      },
+      "accepted_receipt": {
+        "contract_version": "1.0",
+        "operation_id": "00000000-0000-0000-0000-000000000101",
+        "context_id": "00000000-0000-0000-0000-000000000101",
+        "status": "accepted"
+      },
+      "duplicate_receipt": {
+        "contract_version": "1.0",
+        "operation_id": "00000000-0000-0000-0000-000000000101",
+        "context_id": "00000000-0000-0000-0000-000000000101",
+        "status": "duplicate"
+      },
+      "proposed_fingerprint": "v1:sha256:c4714a82a3e0e1af6c886393a2057f316084d83c9abb2307661861b0beceb553",
+      "proposed_canonical_json": "{\"authorization_scope\":{\"github_installation_id\":\"123\",\"github_repository_id\":\"456\",\"pipeline_id\":\"00000000-0000-0000-0000-000000000401\",\"scope_revision\":\"scope-12\",\"tenant_id\":\"00000000-0000-0000-0000-000000000901\"},\"context\":{\"correlation_id\":\"corr-r1\",\"created_at\":\"2026-11-17T10:00:00.000001Z\",\"evidence_ids\":[\"00000000-0000-0000-0000-000000000501\"],\"execution_id\":\"00000000-0000-0000-0000-000000000301\",\"id\":\"00000000-0000-0000-0000-000000000101\",\"incident_id\":\"00000000-0000-0000-0000-000000000201\",\"summary\":\"Synthetic protected operational context\"},\"contract_version\":\"1.0\",\"operation_id\":\"00000000-0000-0000-0000-000000000101\",\"signals\":[{\"content\":\"Protected résumé α: dependency \\\"example\\\" unavailable\\npath C:\\\\synthetic\\tend\",\"correlation_id\":\"corr-r1\",\"evidence_id\":\"00000000-0000-0000-0000-000000000501\",\"origin_context_id\":\"00000000-0000-0000-0000-000000000101\",\"stage\":\"BUILD\",\"summary\":\"Synthetic build failure\"}]}"
+    },
+    {
+      "name": "a_plus_b",
+      "headers": {
+        "Idempotency-Key": "00000000-0000-0000-0000-000000000102",
+        "X-Correlation-ID": "corr-r2"
+      },
+      "submission": {
+        "contract_version": "1.0",
+        "operation_id": "00000000-0000-0000-0000-000000000102",
+        "authorization_scope": {
+          "tenant_id": "00000000-0000-0000-0000-000000000901",
+          "github_installation_id": "123",
+          "github_repository_id": "456",
+          "pipeline_id": "00000000-0000-0000-0000-000000000401",
+          "scope_revision": "scope-13"
+        },
+        "context": {
+          "id": "00000000-0000-0000-0000-000000000102",
+          "incident_id": "00000000-0000-0000-0000-000000000201",
+          "execution_id": "00000000-0000-0000-0000-000000000301",
+          "evidence_ids": [
+            "00000000-0000-0000-0000-000000000501",
+            "00000000-0000-0000-0000-000000000502"
+          ],
+          "summary": "Synthetic protected operational context",
+          "correlation_id": "corr-r2",
+          "created_at": "2026-11-17T10:00:01.000001Z"
+        },
+        "signals": [
+          {
+            "evidence_id": "00000000-0000-0000-0000-000000000501",
+            "origin_context_id": "00000000-0000-0000-0000-000000000101",
+            "correlation_id": "corr-r1",
+            "stage": "BUILD",
+            "summary": "Synthetic build failure",
+            "content": "Protected résumé α: dependency \"example\" unavailable\npath C:\\synthetic\tend"
+          },
+          {
+            "evidence_id": "00000000-0000-0000-0000-000000000502",
+            "origin_context_id": "00000000-0000-0000-0000-000000000102",
+            "correlation_id": "corr-r2",
+            "stage": "TESTING",
+            "summary": "Synthetic test failure",
+            "content": "Protected test output: assertion failed"
+          }
+        ]
+      },
+      "accepted_receipt": {
+        "contract_version": "1.0",
+        "operation_id": "00000000-0000-0000-0000-000000000102",
+        "context_id": "00000000-0000-0000-0000-000000000102",
+        "status": "accepted"
+      },
+      "duplicate_receipt": {
+        "contract_version": "1.0",
+        "operation_id": "00000000-0000-0000-0000-000000000102",
+        "context_id": "00000000-0000-0000-0000-000000000102",
+        "status": "duplicate"
+      },
+      "proposed_fingerprint": "v1:sha256:61d515d9d0297321d387fe5539d664c286629de0794f8e8ef86492bae6ba21e8",
+      "proposed_canonical_json": "{\"authorization_scope\":{\"github_installation_id\":\"123\",\"github_repository_id\":\"456\",\"pipeline_id\":\"00000000-0000-0000-0000-000000000401\",\"scope_revision\":\"scope-13\",\"tenant_id\":\"00000000-0000-0000-0000-000000000901\"},\"context\":{\"correlation_id\":\"corr-r2\",\"created_at\":\"2026-11-17T10:00:01.000001Z\",\"evidence_ids\":[\"00000000-0000-0000-0000-000000000501\",\"00000000-0000-0000-0000-000000000502\"],\"execution_id\":\"00000000-0000-0000-0000-000000000301\",\"id\":\"00000000-0000-0000-0000-000000000102\",\"incident_id\":\"00000000-0000-0000-0000-000000000201\",\"summary\":\"Synthetic protected operational context\"},\"contract_version\":\"1.0\",\"operation_id\":\"00000000-0000-0000-0000-000000000102\",\"signals\":[{\"content\":\"Protected résumé α: dependency \\\"example\\\" unavailable\\npath C:\\\\synthetic\\tend\",\"correlation_id\":\"corr-r1\",\"evidence_id\":\"00000000-0000-0000-0000-000000000501\",\"origin_context_id\":\"00000000-0000-0000-0000-000000000101\",\"stage\":\"BUILD\",\"summary\":\"Synthetic build failure\"},{\"content\":\"Protected test output: assertion failed\",\"correlation_id\":\"corr-r2\",\"evidence_id\":\"00000000-0000-0000-0000-000000000502\",\"origin_context_id\":\"00000000-0000-0000-0000-000000000102\",\"stage\":\"TESTING\",\"summary\":\"Synthetic test failure\"}]}"
+    }
+  ],
+  "wrong_receipt": {
+    "contract_version": "1.0",
+    "operation_id": "00000000-0000-0000-0000-000000000102",
+    "context_id": "00000000-0000-0000-0000-000000000101",
+    "status": "accepted"
+  },
+  "acceptance_scenarios": [
+    "A then A+B retain the first signal and original incorporation trace.",
+    "Lost remote response after durable commit: resend the same operation/body and accept only its valid duplicate receipt.",
+    "Process restart: reconstruct original snapshot scope and ordered signals, not current alias content.",
+    "Conflicting significant content: reject without effects; do not allocate a new operation to escape conflict.",
+    "Invalid current authority or unavailable references: no acceptance or local confirmation; historical scope is not permission.",
+    "RAG outage is not no_match, completed diagnosis or evidence that a durable receipt did not commit."
+  ]
+}
