@@ -6,6 +6,7 @@ import com.pipesor.recommendation.retrieval.domain.RetrievalQuery;
 import com.pipesor.recommendation.retrieval.domain.RetrievalResult;
 
 import java.util.List;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -35,14 +36,23 @@ public final class DiagnosticOrchestrator {
         var hypothesis = inference.infer(signals, matches);
         if (hypothesis == null || empty(hypothesis.probableCause()) || empty(hypothesis.recommendation())
                 || empty(hypothesis.limitations()) || hypothesis.evidenceIds().isEmpty()
-                || !signals.stream().map(Evidence::evidenceId).toList().containsAll(hypothesis.evidenceIds())
-                || !matches.stream().map(KnowledgeMatch::chunkId).toList().containsAll(hypothesis.chunkIds())) {
+                || !validCitations(hypothesis.evidenceIds(), signals.stream().map(Evidence::evidenceId).toList())
+                || !validCitations(hypothesis.chunkIds(), matches.stream().map(KnowledgeMatch::chunkId).toList())) {
             throw new IllegalStateException("Invalid diagnostic hypothesis or citations");
         }
         return new Diagnosis(contextId, executionId, incidentId, query.correlationId(), hypothesis,
                 signals.stream().filter(signal -> hypothesis.evidenceIds().contains(signal.evidenceId())).toList(),
                 matches.stream().filter(match -> hypothesis.chunkIds().contains(match.chunkId()))
                         .map(match -> new Source(match.documentId(), match.chunkId(), match.provenance())).toList());
+    }
+
+    private static boolean validCitations(List<UUID> cited, List<UUID> available) {
+        var ids = new HashSet<>(cited);
+        if (ids.size() != cited.size()) return false;
+        for (UUID id : available) {
+            if (cited.contains(id) && !ids.remove(id)) return false;
+        }
+        return ids.isEmpty();
     }
 
     private static boolean empty(String value) {
