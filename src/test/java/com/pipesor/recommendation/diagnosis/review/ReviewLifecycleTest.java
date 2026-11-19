@@ -137,6 +137,14 @@ class ReviewLifecycleTest {
             store.save(browserIds.get(1), 2, SCOPE, e05);
             store.save(browserIds.get(2), 1, SCOPE, synthetic("unsupported claim about the network"));
 
+            // The existing browser fixture occupies version 2 for this incident.
+            UUID nextContext = UUID.randomUUID();
+            var next = workflow.diagnose(nextContext, e05.executionId(), e05.incidentId(), query, e05.evidence());
+            assertThat(next.version()).isEqualTo(3);
+            assertThat(next.diagnosticId()).isNotEqualTo(correct);
+            assertThat(next.output().contextId()).isEqualTo(nextContext);
+            assertThat(workflow.diagnose(nextContext, e05.executionId(), e05.incidentId(), query, e05.evidence()))
+                    .isEqualTo(next);
             JsonNode original;
             try (var app = start()) {
                 int port = app.getWebServer().getPort();
@@ -194,6 +202,11 @@ class ReviewLifecycleTest {
                 assertThat(restored.path("history").get(0).path("correlationId").asString()).isEqualTo(e05.correlationId());
                 assertThat(restored.path("history").get(0).path("correctedRecommendation").asString())
                         .contains("before installing anything");
+                var restoredNext = get(port, next.diagnosticId(), READ);
+                assertThat(restoredNext.path("diagnosisVersion").asInt()).isEqualTo(3);
+                assertThat(restoredNext.path("original")).isEqualTo(JSON.valueToTree(next.output()));
+                assertThat(restoredNext.path("status").asString()).isEqualTo("PENDING");
+                assertThat(restoredNext.path("history").size()).isZero();
                 assertThat(get(port, confirm, READ).path("history").size()).isEqualTo(2);
                 assertThat(get(port, reject, READ).path("status").asString()).isEqualTo("REJECTED");
                 System.out.println("PIPESOR_ADMISSION_RESTART immutable replay, conflicting fingerprint rejected, invalid citations rejected");
