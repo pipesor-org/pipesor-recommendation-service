@@ -54,6 +54,8 @@ class AzureOpenAiInferenceTest {
                 .andExpect(header("Authorization", "Bearer synthetic-entra-token"))
                 .andExpect(jsonPath("$.model").value("fixture-deployment"))
                 .andExpect(jsonPath("$.response_format.json_schema.strict").value(true))
+                .andExpect(jsonPath("$.response_format.json_schema.schema.properties.evidenceId.enum[0]").value(EVIDENCE_ID.toString()))
+                .andExpect(jsonPath("$.response_format.json_schema.schema.properties.chunkIds.type").value("null"))
                 .andExpect(jsonPath("$.messages[1].content").value(org.hamcrest.Matchers.containsString(EVIDENCE_ID.toString())))
                 .andExpect(jsonPath("$.messages[1].content").value(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString(OTHER_ID.toString()))))
@@ -63,6 +65,25 @@ class AzureOpenAiInferenceTest {
         assertThat(result.evidence()).containsExactlyElementsOf(SIGNALS);
         assertThat(result.correlationId()).isEqualTo("fixture-correlation");
         server.verify();
+    }
+
+    @Test
+    void acceptsOnlyAnAzureAccountOriginForFoundryChat() {
+        var endpoint = URI.create("https://synthetic.services.ai.azure.com");
+        var provider = new AzureOpenAiInference(endpoint, "fixture-deployment", credential,
+                Duration.ofSeconds(2), builder.build());
+        server.expect(requestTo(endpoint + "/openai/v1/chat/completions"))
+                .andExpect(header("Authorization", "Bearer synthetic-entra-token"))
+                .andRespond(withSuccess(reply("stop", hypothesis(EVIDENCE_ID)), MediaType.APPLICATION_JSON));
+        assertThat(provider.infer(SIGNALS, List.of()).probableCause()).isEqualTo("Host resolution failed");
+        server.verify();
+
+        for (var value : List.of("https://synthetic.services.ai.azure.com.example.invalid",
+                "https://synthetic.services.ai.azure.com/api/projects/demo",
+                "http://synthetic.services.ai.azure.com")) {
+            assertThatThrownBy(() -> new AzureOpenAiInference(URI.create(value), "fixture-deployment", credential,
+                    Duration.ofSeconds(2), builder.build())).isInstanceOf(IllegalArgumentException.class);
+        }
     }
 
     @Test
@@ -109,9 +130,12 @@ class AzureOpenAiInferenceTest {
     }
 
     private static String hypothesis(UUID id) {
-        return JsonMapper.builder().build().writeValueAsString(Map.of("probableCause", "Host resolution failed",
-                "recommendation", "Check DNS", "limitations", "Synthetic evidence only",
-                "evidenceIds", List.of(id), "chunkIds", List.of()));
+        var node = JsonMapper.builder().build().createObjectNode()
+                .put("probableCause", "Host resolution failed").put("recommendation", "Check DNS")
+                .put("limitations", "Synthetic evidence only").put("evidenceId", id.toString())
+                .putNull("chunkIds");
+        node.putArray("additionalEvidenceIds");
+        return node.toString();
     }
 
     private static String reply(String finish, String content) {

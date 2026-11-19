@@ -2,6 +2,7 @@ package com.pipesor.recommendation.diagnosis.application;
 
 import com.pipesor.recommendation.diagnosis.application.DiagnosticOrchestrator.Evidence;
 import com.pipesor.recommendation.diagnosis.application.DiagnosticOrchestrator.Hypothesis;
+import com.pipesor.recommendation.diagnosis.application.DiagnosticOrchestrator.InvalidHypothesis;
 import com.pipesor.recommendation.retrieval.domain.AuthorizationScope;
 import com.pipesor.recommendation.retrieval.domain.CorpusKind;
 import com.pipesor.recommendation.retrieval.domain.KnowledgeMatch;
@@ -44,5 +45,24 @@ class DiagnosticOrchestratorTest {
                         hypothesis.evidenceIds(), List.of(match.chunkId(), match.chunkId())));
         assertThatThrownBy(() -> duplicateCitation.diagnose(context, execution, incident, query, List.of(evidence)))
                 .hasMessage("Invalid diagnostic hypothesis or citations");
+
+        assertRejected(query, evidence, List.of(), List.of(), "missing_evidence_citation");
+        assertRejected(query, evidence, List.of(UUID.randomUUID()), List.of(), "unknown_evidence_citation");
+        assertRejected(query, evidence, List.of(evidence.evidenceId(), evidence.evidenceId()),
+                List.of(), "duplicate_evidence_citation");
+        assertRejected(query, evidence, List.of(evidence.evidenceId()), List.of(match.chunkId()),
+                "unknown_chunk_citation");
+    }
+
+    private static void assertRejected(RetrievalQuery query, Evidence evidence, List<UUID> evidenceIds,
+            List<UUID> chunkIds, String reason) {
+        var service = new DiagnosticOrchestrator(request -> new RetrievalResult.NoMatch(request.correlationId()),
+                (signals, knowledge) -> new Hypothesis("DNS failure", "Check DNS", "Cause unknown", evidenceIds, chunkIds));
+        assertThatThrownBy(() -> service.diagnose(evidence.originContextId(), UUID.randomUUID(),
+                        UUID.randomUUID(), query, List.of(evidence)))
+                .isInstanceOfSatisfying(InvalidHypothesis.class, failure -> {
+                    assertThat(failure.reason()).isEqualTo(reason);
+                    assertThat(failure).hasMessage("Invalid diagnostic hypothesis or citations");
+                });
     }
 }

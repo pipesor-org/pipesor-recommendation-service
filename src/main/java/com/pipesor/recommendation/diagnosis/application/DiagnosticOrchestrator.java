@@ -5,6 +5,8 @@ import com.pipesor.recommendation.retrieval.domain.KnowledgeMatch;
 import com.pipesor.recommendation.retrieval.domain.RetrievalQuery;
 import com.pipesor.recommendation.retrieval.domain.RetrievalResult;
 
+import org.slf4j.LoggerFactory;
+
 import java.util.List;
 import java.util.HashSet;
 import java.util.Objects;
@@ -12,6 +14,7 @@ import java.util.UUID;
 
 /** Internal orchestration for a caller that has already authorized and sanitized the context. */
 public final class DiagnosticOrchestrator {
+    private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(DiagnosticOrchestrator.class);
     private final RagKnowledgeRetriever retrieval;
     private final Inference inference;
 
@@ -34,25 +37,44 @@ public final class DiagnosticOrchestrator {
         }
         List<KnowledgeMatch> matches = result instanceof RetrievalResult.Matches found ? found.matches() : List.of();
         var hypothesis = inference.infer(signals, matches);
-        if (hypothesis == null || empty(hypothesis.probableCause()) || empty(hypothesis.recommendation())
-                || empty(hypothesis.limitations()) || hypothesis.evidenceIds().isEmpty()
-                || !validCitations(hypothesis.evidenceIds(), signals.stream().map(Evidence::evidenceId).toList())
-                || !validCitations(hypothesis.chunkIds(), matches.stream().map(KnowledgeMatch::chunkId).toList())) {
-            throw new IllegalStateException("Invalid diagnostic hypothesis or citations");
-        }
+        if (hypothesis == null) throw reject("missing_hypothesis");
+        if (empty(hypothesis.probableCause())) throw reject("blank_probable_cause");
+        if (empty(hypothesis.recommendation())) throw reject("blank_recommendation");
+        if (empty(hypothesis.limitations())) throw reject("blank_limitations");
+        if (hypothesis.evidenceIds().isEmpty()) throw reject("missing_evidence_citation");
+        validateCitations(hypothesis.evidenceIds(), signals.stream().map(Evidence::evidenceId).toList(), "evidence");
+        validateCitations(hypothesis.chunkIds(), matches.stream().map(KnowledgeMatch::chunkId).toList(), "chunk");
         return new Diagnosis(contextId, executionId, incidentId, query.correlationId(), hypothesis,
                 signals.stream().filter(signal -> hypothesis.evidenceIds().contains(signal.evidenceId())).toList(),
                 matches.stream().filter(match -> hypothesis.chunkIds().contains(match.chunkId()))
                         .map(match -> new Source(match.documentId(), match.chunkId(), match.provenance())).toList());
     }
 
-    private static boolean validCitations(List<UUID> cited, List<UUID> available) {
-        var ids = new HashSet<>(cited);
-        if (ids.size() != cited.size()) return false;
+    private static void validateCitations(List<UUID> cited, List<UUID> available, String kind) {
+        var remaining = new HashSet<>(cited);
+        if (remaining.size() != cited.size()) throw reject("duplicate_" + kind + "_citation");
         for (UUID id : available) {
-            if (cited.contains(id) && !ids.remove(id)) return false;
+            if (cited.contains(id) && !remaining.remove(id)) throw reject("ambiguous_" + kind + "_reference");
         }
-        return ids.isEmpty();
+        if (!remaining.isEmpty()) throw reject("unknown_" + kind + "_citation");
+    }
+
+    private static InvalidHypothesis reject(String reason) {
+        LOG.warn("diagnostic_validation_rejected reason={}", reason);
+        return new InvalidHypothesis(reason);
+    }
+
+    public static final class InvalidHypothesis extends IllegalStateException {
+        private final String reason;
+
+        private InvalidHypothesis(String reason) {
+            super("Invalid diagnostic hypothesis or citations");
+            this.reason = reason;
+        }
+
+        public String reason() {
+            return reason;
+        }
     }
 
     private static boolean empty(String value) {
