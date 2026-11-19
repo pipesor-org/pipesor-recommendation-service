@@ -18,6 +18,18 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class DiagnosticOrchestratorTest {
     @Test
+    void refusesToInferWithoutEvidence() {
+        var service = new DiagnosticOrchestrator(
+                query -> { throw new AssertionError("Retrieved knowledge without diagnostic evidence"); },
+                (signals, knowledge) -> { throw new AssertionError("Inferred without diagnostic evidence"); });
+        var query = new RetrievalQuery("fixture", "Synthetic query",
+                new AuthorizationScope(UUID.randomUUID(), "1", "2", null, "fixture"),
+                List.of(CorpusKind.AUTHORIZED_TECHNICAL_DOCUMENTATION), 1);
+        assertThatThrownBy(() -> service.diagnose(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), query, List.of()))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("Diagnostic evidence is required");
+    }
+
+    @Test
     void requiresEachCitationToResolveToExactlyOneLink() {
         var context = UUID.randomUUID();
         var evidence = new Evidence(UUID.randomUUID(), context, "checkout", "Synthetic failure");
