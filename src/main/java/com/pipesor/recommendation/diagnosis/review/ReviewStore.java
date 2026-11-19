@@ -40,6 +40,73 @@ public final class ReviewStore {
         }
     }
 
+    Admission admitted(UUID id, String fingerprint) throws SQLException {
+        try (var connection = source.getConnection()) {
+            return admitted(connection, id, fingerprint);
+        }
+    }
+
+    private Admission admitted(Connection connection, UUID id, String fingerprint) throws SQLException {
+        try (var select = connection.prepareStatement("""
+                SELECT version, admission_fingerprint, output FROM diagnosis.diagnoses WHERE id = ?
+                """)) {
+            select.setObject(1, id);
+            try (var row = select.executeQuery()) {
+                if (!row.next()) return null;
+                if (!fingerprint.equals(row.getString("admission_fingerprint"))) throw new Conflict();
+                return new Admission(id, row.getInt("version"),
+                        JSON.readValue(row.getString("output"), Diagnosis.class));
+            }
+        }
+    }
+
+    Admission admit(UUID id, String fingerprint, AuthorizationScope scope, Diagnosis output) throws SQLException {
+        try (var connection = source.getConnection()) {
+            connection.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+            connection.setAutoCommit(false);
+            try {
+                // Serialize version assignment even when the incident has no snapshots yet.
+                try (var lock = connection.prepareStatement("SELECT pg_advisory_xact_lock(?)")) {
+                    lock.setLong(1, output.incidentId().getMostSignificantBits());
+                    lock.execute();
+                }
+                var existing = admitted(connection, id, fingerprint);
+                if (existing != null) {
+                    connection.commit();
+                    return existing;
+                }
+                int version;
+                try (var insert = connection.prepareStatement("""
+                        INSERT INTO diagnosis.diagnoses
+                            (id, incident_id, version, correlation_id, authorization_scope, output, admission_fingerprint)
+                        SELECT ?, ?, COALESCE(MAX(version), 0) + 1, ?, ?::jsonb, ?::jsonb, ?
+                        FROM diagnosis.diagnoses WHERE incident_id = ?
+                        RETURNING version
+                        """)) {
+                    insert.setObject(1, id);
+                    insert.setObject(2, output.incidentId());
+                    insert.setString(3, output.correlationId());
+                    insert.setString(4, JSON.writeValueAsString(scope));
+                    insert.setString(5, JSON.writeValueAsString(output));
+                    insert.setString(6, fingerprint);
+                    insert.setObject(7, output.incidentId());
+                    try (var row = insert.executeQuery()) {
+                        if (!row.next()) throw new IllegalStateException("Diagnosis admission returned no version");
+                        version = row.getInt("version");
+                    }
+                }
+                connection.commit();
+                return new Admission(id, version, output);
+            } catch (SQLException | RuntimeException failure) {
+                connection.rollback();
+                if (failure instanceof SQLException sql && "23505".equals(sql.getSQLState())) throw new Conflict();
+                throw failure;
+            }
+        }
+    }
+
+    public record Admission(UUID diagnosticId, int version, Diagnosis output) {}
+
     Snapshot read(UUID id) throws SQLException {
         try (var connection = source.getConnection()) {
             return read(connection, id, false);
@@ -131,5 +198,5 @@ public final class ReviewStore {
     public record Review(UUID id, int revision, String reviewer, Decision decision, OffsetDateTime timestamp,
                          String correlationId, String actualCause, String comment, String correctedRecommendation) {}
     record Snapshot(UUID diagnosticId, int version, AuthorizationScope scope, Diagnosis original, List<Review> history) {}
-    static final class Conflict extends RuntimeException {}
+    public static final class Conflict extends RuntimeException {}
 }

@@ -1,7 +1,12 @@
 package com.pipesor.recommendation.diagnosis.review;
 
 import com.pipesor.recommendation.RecommendationServiceApplication;
+import com.pipesor.recommendation.diagnosis.application.DiagnosticOrchestrator;
 import com.pipesor.recommendation.diagnosis.application.DiagnosticOrchestrator.Diagnosis;
+import com.pipesor.recommendation.retrieval.domain.CorpusKind;
+import com.pipesor.recommendation.retrieval.domain.KnowledgeMatch;
+import com.pipesor.recommendation.retrieval.domain.RetrievalQuery;
+import com.pipesor.recommendation.retrieval.domain.RetrievalResult;
 import com.pipesor.recommendation.diagnosis.application.DiagnosticOrchestrator.Evidence;
 import com.pipesor.recommendation.diagnosis.application.DiagnosticOrchestrator.Hypothesis;
 import com.pipesor.recommendation.retrieval.domain.AuthorizationScope;
@@ -77,7 +82,7 @@ class ReviewLifecycleTest {
             source.setPassword(database.getPassword());
             Flyway.configure().dataSource(source).defaultSchema("diagnosis").load().migrate();
             var store = new ReviewStore(source);
-            UUID confirm = UUID.randomUUID(), correct = UUID.randomUUID(), reject = UUID.randomUUID();
+            UUID confirm = UUID.randomUUID(), reject = UUID.randomUUID();
             UUID other = UUID.randomUUID();
             store.save(other, 1, OTHER_SCOPE, synthetic("other tenant fixture"));
             Diagnosis e05;
@@ -85,8 +90,48 @@ class ReviewLifecycleTest {
                 e05 = JSON.readValue(input, Diagnosis.class);
             }
             store.save(confirm, 1, SCOPE, synthetic("compiler reported missing file"));
-            store.save(correct, 1, SCOPE, e05);
+            var retrieved = e05.sources().getFirst();
+            var kind = CorpusKind.AUTHORIZED_TECHNICAL_DOCUMENTATION;
+            var query = new RetrievalQuery(e05.correlationId(), e05.evidence().getFirst().content(),
+                    SCOPE, List.of(kind), 1);
+            var workflow = new PersistedDiagnosticWorkflow(new DiagnosticOrchestrator(
+                    request -> new RetrievalResult.Matches(request.correlationId(), List.of(new KnowledgeMatch(
+                            retrieved.chunkId(), retrieved.documentId(), kind, "Replay guide", "Replay knowledge",
+                            retrieved.provenance(), 1))),
+                    (signals, knowledge) -> e05.hypothesis()), store);
+            var admitted = workflow.diagnose(e05.contextId(), e05.executionId(), e05.incidentId(), query, e05.evidence());
+            UUID correct = admitted.diagnosticId();
+            assertThat(admitted.version()).isEqualTo(1);
+            assertThat(admitted.output()).isEqualTo(e05);
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> workflow.diagnose(
+                    e05.contextId(), UUID.randomUUID(), e05.incidentId(), query, e05.evidence()))
+                    .isInstanceOf(ReviewStore.Conflict.class);
+            var invalid = new PersistedDiagnosticWorkflow(new DiagnosticOrchestrator(
+                    request -> new RetrievalResult.NoMatch(request.correlationId()),
+                    (signals, knowledge) -> e05.hypothesis()), store);
+            UUID invalidContext = UUID.randomUUID();
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> invalid.diagnose(
+                    invalidContext, e05.executionId(), e05.incidentId(), query, e05.evidence()))
+                    .isInstanceOf(DiagnosticOrchestrator.InvalidHypothesis.class);
             store.save(reject, 1, SCOPE, synthetic("unsupported claim about the network"));
+            try (var connection = source.getConnection();
+                 var count = connection.prepareStatement("SELECT count(*) FROM diagnosis.diagnoses WHERE incident_id = ?")) {
+                count.setObject(1, e05.incidentId());
+                try (var row = count.executeQuery()) {
+                    assertThat(row.next()).isTrue();
+                    assertThat(row.getInt(1)).isEqualTo(1);
+                }
+            }
+            try (var workers = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+                UUID concurrentIncident = UUID.randomUUID();
+                var firstAdmission = workers.submit(() -> workflow.diagnose(UUID.randomUUID(),
+                        e05.executionId(), concurrentIncident, query, e05.evidence()));
+                var secondAdmission = workers.submit(() -> workflow.diagnose(UUID.randomUUID(),
+                        e05.executionId(), concurrentIncident, query, e05.evidence()));
+                assertThat(List.of(firstAdmission.get(10, java.util.concurrent.TimeUnit.SECONDS).version(),
+                        secondAdmission.get(10, java.util.concurrent.TimeUnit.SECONDS).version()))
+                        .containsExactlyInAnyOrder(1, 2);
+            }
             var browserIds = List.of(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
             store.save(browserIds.get(0), 1, SCOPE, synthetic("compiler reported missing file"));
             store.save(browserIds.get(1), 2, SCOPE, e05);
@@ -135,6 +180,12 @@ class ReviewLifecycleTest {
             }
             try (var app = start()) {
                 int port = app.getWebServer().getPort();
+                var replay = new PersistedDiagnosticWorkflow(new DiagnosticOrchestrator(
+                        request -> { throw new AssertionError("Replay called retrieval"); },
+                        (signals, knowledge) -> { throw new AssertionError("Replay called inference"); }),
+                        new ReviewStore(source));
+                assertThat(replay.diagnose(e05.contextId(), e05.executionId(), e05.incidentId(), query, e05.evidence()))
+                        .isEqualTo(admitted);
                 JsonNode restored = get(port, correct, READ);
                 assertThat(restored.get("original")).isEqualTo(original);
                 assertThat(restored.get("status").asString()).isEqualTo("CORRECTED");
@@ -145,6 +196,7 @@ class ReviewLifecycleTest {
                         .contains("before installing anything");
                 assertThat(get(port, confirm, READ).path("history").size()).isEqualTo(2);
                 assertThat(get(port, reject, READ).path("status").asString()).isEqualTo("REJECTED");
+                System.out.println("PIPESOR_ADMISSION_RESTART immutable replay, conflicting fingerprint rejected, invalid citations rejected");
                 System.out.println("P3_HTTP confirmed=1 corrected=1 rejected=1; duplicate replay, conflict race, denied read/write, service restart and immutable E05 verified");
                 var browserViews = new java.util.ArrayList<JsonNode>();
                 if (System.getenv("PIPESOR_REVIEW_BROWSER_CHECK") != null) {
