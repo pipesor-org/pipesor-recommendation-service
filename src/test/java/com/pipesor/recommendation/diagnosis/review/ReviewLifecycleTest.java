@@ -36,6 +36,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ReviewLifecycleTest {
+    private static final java.util.concurrent.atomic.AtomicBoolean VIEWER_REVOKED = new java.util.concurrent.atomic.AtomicBoolean();
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final AuthorizationScope SCOPE = new AuthorizationScope(UUID.randomUUID(), "1", "2",
             UUID.randomUUID(), "fixture");
@@ -65,7 +66,7 @@ class ReviewLifecycleTest {
                 }
 
                 public boolean allows(String reviewer, AuthorizationScope scope, boolean write) {
-                    return SCOPE.equals(scope) && (reviewer.equals(OPERATOR) || !write && reviewer.equals(VIEWER))
+                    return SCOPE.equals(scope) && (reviewer.equals(OPERATOR) || !write && reviewer.equals(VIEWER) && !VIEWER_REVOKED.get())
                             || OTHER_SCOPE.equals(scope) && reviewer.equals(OUTSIDER);
                 }
             });
@@ -151,6 +152,14 @@ class ReviewLifecycleTest {
                 original = get(port, correct, WRITE).get("original");
                 assertThat(original).isEqualTo(JSON.valueToTree(e05));
                 assertThat(get(port, correct, READ).get("status").asString()).isEqualTo("PENDING");
+                VIEWER_REVOKED.set(true);
+                try {
+                    assertThat(HTTP.send(request(port, correct, READ),
+                            HttpResponse.BodyHandlers.discarding()).statusCode()).isEqualTo(404);
+                } finally {
+                    VIEWER_REVOKED.set(false);
+                }
+                assertThat(get(port, correct, READ).get("original")).isEqualTo(original);
                 assertThat(HTTP.send(request(port, correct, "invalid"), HttpResponse.BodyHandlers.discarding()).statusCode()).isEqualTo(401);
                 assertThat(HTTP.send(request(port, correct, "synthetic-outsider"), HttpResponse.BodyHandlers.discarding()).statusCode()).isEqualTo(404);
                 assertThat(get(port, other, "synthetic-outsider").get("status").asString()).isEqualTo("PENDING");
