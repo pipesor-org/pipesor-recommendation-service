@@ -6,8 +6,15 @@ The first executable increment provides the Java / Spring Boot foundation and th
 internal Recommendation → RAG v1 client. It preserves verified authorization scope,
 correlation context and source provenance. The Correlation receipt increment adds
 an explicitly composed internal HTTP route and durable context storage.
-Diagnostic inference, public API endpoints, container images and release
-automation remain outside this increment.
+An internal diagnostic orchestrator calls the existing RAG client and an
+injected inference provider, checks citations against the supplied context, and
+returns the probable cause, recommendation and limitations. The local
+[owner-chain demonstration](https://github.com/pipesor-org/pipesor-evidence-correlation-engine/blob/main/docs/local-diagnostic-demo.md)
+exercises this increment with the real local RAG service, deterministic embeddings
+and simulated inference. Its explicit local HTTP read route requires a per-run
+bearer token. Managed
+inference activation, public API endpoints, container images and release
+automation remain pending.
 
 ## Documentation
 
@@ -30,6 +37,14 @@ On Windows:
 ```powershell
 .\mvnw.cmd verify
 ```
+
+The Azure OpenAI v1 adapter is available for explicit composition through
+`AzureOpenAiInference`. It takes an authorized Azure OpenAI resource origin,
+deployment name, Entra credential, and an explicit timeout. It sends only
+sanitized evidence and authorized knowledge with their citation IDs and
+requires structured diagnostic output. The default application and the local
+deterministic scenario keep their existing composition. Live provider access
+and a specific model remain subject to PD-026 and the DEV deployment gates.
 
 The application requires `PIPESOR_RAG_ENDPOINT` and `PIPESOR_RAG_AUDIENCE`.
 The endpoint must use HTTPS and the audience has the form `api://<application-id>`.

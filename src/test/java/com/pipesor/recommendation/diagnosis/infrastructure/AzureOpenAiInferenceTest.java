@@ -1,0 +1,121 @@
+package com.pipesor.recommendation.diagnosis.infrastructure;
+
+import com.azure.core.credential.AccessToken;
+import com.azure.core.credential.TokenCredential;
+import com.pipesor.recommendation.diagnosis.application.DiagnosticOrchestrator;
+import com.pipesor.recommendation.diagnosis.application.DiagnosticOrchestrator.Evidence;
+import com.pipesor.recommendation.retrieval.domain.AuthorizationScope;
+import com.pipesor.recommendation.retrieval.domain.CorpusKind;
+import com.pipesor.recommendation.retrieval.domain.RetrievalQuery;
+import com.pipesor.recommendation.retrieval.domain.RetrievalResult;
+import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestClient;
+import reactor.core.publisher.Mono;
+import tools.jackson.databind.json.JsonMapper;
+
+import java.net.URI;
+import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+
+class AzureOpenAiInferenceTest {
+    private static final URI ENDPOINT = URI.create("https://synthetic.openai.azure.com");
+    private static final UUID EVIDENCE_ID = UUID.fromString("e6988490-6322-590d-b48d-662b154b55d9");
+    private static final UUID OTHER_ID = UUID.fromString("f6988490-6322-590d-b48d-662b154b55d9");
+    private static final List<Evidence> SIGNALS = List.of(
+            new Evidence(EVIDENCE_ID, OTHER_ID, "INFRASTRUCTURE", "Could not resolve host: example.invalid"));
+    private static final String PATH = ENDPOINT + "/openai/v1/chat/completions";
+
+    private final RestClient.Builder builder = RestClient.builder();
+    private final MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+    private final TokenCredential credential = request -> {
+        assertThat(request.getScopes()).containsExactly("https://ai.azure.com/.default");
+        return Mono.just(new AccessToken("synthetic-entra-token", OffsetDateTime.now().plusMinutes(5)));
+    };
+    private final AzureOpenAiInference inference =
+            new AzureOpenAiInference(ENDPOINT, "fixture-deployment", credential, Duration.ofSeconds(2), builder.build());
+
+    @Test
+    void sendsScopedRequestAndComposesProviderHypothesisWithEvidence() {
+        server.expect(requestTo(PATH))
+                .andExpect(header("Authorization", "Bearer synthetic-entra-token"))
+                .andExpect(jsonPath("$.model").value("fixture-deployment"))
+                .andExpect(jsonPath("$.response_format.json_schema.strict").value(true))
+                .andExpect(jsonPath("$.messages[1].content").value(org.hamcrest.Matchers.containsString(EVIDENCE_ID.toString())))
+                .andExpect(jsonPath("$.messages[1].content").value(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString(OTHER_ID.toString()))))
+                .andRespond(withSuccess(reply("stop", hypothesis(EVIDENCE_ID)), MediaType.APPLICATION_JSON));
+        var result = orchestrator().diagnose(OTHER_ID, OTHER_ID, OTHER_ID, query(), SIGNALS);
+        assertThat(result.hypothesis().probableCause()).isEqualTo("Host resolution failed");
+        assertThat(result.evidence()).containsExactlyElementsOf(SIGNALS);
+        assertThat(result.correlationId()).isEqualTo("fixture-correlation");
+        server.verify();
+    }
+
+    @Test
+    void refusesIncompleteOutputAndHidesProviderDetails() {
+        server.expect(requestTo(PATH)).andRespond(withSuccess(reply("length", "sensitive fixture"), MediaType.APPLICATION_JSON));
+        assertThatThrownBy(() -> inference.infer(SIGNALS, List.of()))
+                .hasMessage("Azure OpenAI inference failed or returned invalid output").hasNoCause();
+        server.verify();
+    }
+
+    @Test
+    void refusesUnauthorizedAndUnavailableProviderResponses() {
+        server.expect(requestTo(PATH)).andRespond(withStatus(HttpStatus.FORBIDDEN).body("private provider detail"));
+        server.expect(requestTo(PATH)).andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE).body("private provider detail"));
+        for (int attempt = 0; attempt < 2; attempt++) {
+            assertThatThrownBy(() -> inference.infer(SIGNALS, List.of()))
+                    .hasMessage("Azure OpenAI inference failed or returned invalid output").hasNoCause();
+        }
+        server.verify();
+    }
+
+    @Test
+    void rejectsMalformedStructuredOutput() {
+        server.expect(requestTo(PATH)).andRespond(withSuccess(reply("stop", "{}"), MediaType.APPLICATION_JSON));
+        assertThatThrownBy(() -> inference.infer(SIGNALS, List.of())).isInstanceOf(IllegalStateException.class);
+        server.verify();
+    }
+
+    @Test
+    void orchestratorRejectsUnsupportedProviderCitations() {
+        server.expect(requestTo(PATH)).andRespond(withSuccess(reply("stop", hypothesis(OTHER_ID)), MediaType.APPLICATION_JSON));
+        assertThatThrownBy(() -> orchestrator().diagnose(OTHER_ID, OTHER_ID, OTHER_ID, query(), SIGNALS))
+                .hasMessage("Invalid diagnostic hypothesis or citations");
+        server.verify();
+    }
+
+    private DiagnosticOrchestrator orchestrator() {
+        return new DiagnosticOrchestrator(query -> new RetrievalResult.NoMatch(query.correlationId()), inference);
+    }
+
+    private static RetrievalQuery query() {
+        return new RetrievalQuery("fixture-correlation", "fixture", new AuthorizationScope(OTHER_ID, "1", "2", null,
+                "fixture-scope"), List.of(CorpusKind.AUTHORIZED_TECHNICAL_DOCUMENTATION), 1);
+    }
+
+    private static String hypothesis(UUID id) {
+        return JsonMapper.builder().build().writeValueAsString(Map.of("probableCause", "Host resolution failed",
+                "recommendation", "Check DNS", "limitations", "Synthetic evidence only",
+                "evidenceIds", List.of(id), "chunkIds", List.of()));
+    }
+
+    private static String reply(String finish, String content) {
+        return JsonMapper.builder().build().writeValueAsString(Map.of("choices",
+                List.of(Map.of("finish_reason", finish, "message", Map.of("content", content)))));
+    }
+}
