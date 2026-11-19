@@ -26,6 +26,8 @@ automation remain pending.
 
 ## Development and verification
 
+For the local Human Review contract and HTTP/Chromium reproduction, see the [review lifecycle guide](docs/local-human-review.md).
+
 The [development baseline](docs/deployment-contract.md#development-baseline) records the selected toolchain and dependency policy. The current project targets Java 21 and pins Spring Boot 4.1.2. Run the verified checks with:
 
 ```bash
