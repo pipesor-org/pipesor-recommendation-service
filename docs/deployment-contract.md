@@ -54,11 +54,25 @@ Documented fact: Documented synchronous REST/HTTPS context from correlation and 
 
 | Category | Known requirement and supplier | Status/source |
 |---|---|---|
-| Nonsecret integration settings | PostgreSQL diagnosis connection target, rag_retrieval address, Foundry-backed inference endpoint/deployment (application API/SDK compatibility unresolved) and diagnostic configuration. GPT-4 family is documented; exact LLM variant is intentionally unknown (PD-026). Confidence/risk/API values remain pending PD-004/009/010/011/034. Actual environment values and their suppliers are not assigned. | Targets/capabilities are documented in the model; exact settings and supplier allocation are unknown. |
+| Nonsecret integration settings | PostgreSQL diagnosis connection target, RAG address, approved Azure OpenAI HTTPS account origin, and chat deployment name. PD-026 permits `pipesor-dev-diagnostics` on GPT-4o `2024-11-20` for local synthetic DEV verification. | Default model selection and live cloud identities remain pending. |
 | Secret/authentication requirements | Foundry Entra-only access is selected for the managed foundation; exact inference grants, PostgreSQL/internal-call authentication material and suppliers are unspecified (PD-027/035). Human/API authorization and workflow access remain pending PD-007/034/036; the read-only GitHub App does not authorize workflow API access. | Unknown except explicitly documented mechanisms; PD-027/035. Secret storage is intentionally undecided. |
 | Delivery of values | Proposed: backend maintainers define/validate the required configuration interface; the authorized environment/integration owners supply approved values through the agreed IaC handoff. | Proposal, PD-035; specific people/teams, rotation and distribution mechanism remain unknown. |
 
 The RAG v1 client consumes `PIPESOR_RAG_ENDPOINT`, `PIPESOR_RAG_AUDIENCE` and the optional `PIPESOR_RAG_TIMEOUT` configuration described in the README. It obtains an app-only token through `DefaultAzureCredential`; credentials are not application settings. Other application configuration, secret storage and runtime defaults remain unresolved. The system-assigned ACA identity lifecycle is selected in IaC; its creation, access grants and user/workflow authentication remain separate requirements.
+
+### Local Foundry inference
+
+The local test composition uses Azure CLI-backed Microsoft Entra with scope
+`https://ai.azure.com/.default` and direct account-level `/openai/v1/chat/completions`.
+It passes authorized retrieval results through the existing inference port.
+A required primary evidence enum and typed arrays of permitted additional
+evidence and RAG IDs constrain the response. With no authorized chunks, the
+wire response requires `chunkIds: null`. The orchestrator rejects duplicate,
+unknown and ambiguous IDs and missing or blank required fields. A failed
+provider call or invalid result never publishes a local diagnosis. Logs and
+receipts retain sanitized reason/status and usage only. Cloud workload Entra
+identities, interactive dashboard authorization and production activation
+require their own approvals.
 
 ## Access and integration
 
@@ -66,7 +80,7 @@ The RAG v1 client consumes `PIPESOR_RAG_ENDPOINT`, `PIPESOR_RAG_AUDIENCE` and th
 |---|---|---|
 | `postgresql_operational_store` | Data plane: read/write owned tables only; no database control-plane authority. | `rel_recommendation_service_postgresql`; PostgreSQL |
 | `rag_retrieval` | Data plane: request/read authorized contextual knowledge. | `rel_recommendation_rag`; REST/HTTPS |
-| `pretrained_llm_diagnostic_service` | Data plane: request inference using sanitized evidence and RAG context; no model hosting, training or provider administration; Foundry foundation does not establish application API/SDK compatibility or model grants (ADR-019). | `rel_recommendation_llm`; Azure OpenAI API/HTTPS |
+| `pretrained_llm_diagnostic_service` | Data plane: request inference using sanitized evidence and RAG context; no model hosting, training or provider administration; Foundry workload grants remain separately approved (ADR-019). | `rel_recommendation_llm`; Azure OpenAI API/HTTPS |
 
 Documented fact: incoming consumers/callers are listed in [service relationships](architecture.md#service-relationships). Protocols and directional operations above describe data access, not granted permissions. Control-plane access for Azure/GitHub provisioning or administration is not part of the service runtime contract; no grants are authorized. Exact credentials, audiences, scopes, network rules and permission sets remain unknown (PD-027/034/035 and PD-036 if used). Embedding-provider descriptions do not authorize undeclared direct calls.
 

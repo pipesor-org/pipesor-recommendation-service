@@ -2,6 +2,7 @@ package com.pipesor.recommendation.diagnosis.application;
 
 import com.pipesor.recommendation.diagnosis.application.DiagnosticOrchestrator.Evidence;
 import com.pipesor.recommendation.diagnosis.application.DiagnosticOrchestrator.Hypothesis;
+import com.pipesor.recommendation.diagnosis.application.DiagnosticOrchestrator.InvalidHypothesis;
 import com.pipesor.recommendation.retrieval.domain.AuthorizationScope;
 import com.pipesor.recommendation.retrieval.domain.CorpusKind;
 import com.pipesor.recommendation.retrieval.domain.KnowledgeMatch;
@@ -16,6 +17,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class DiagnosticOrchestratorTest {
+    @Test
+    void refusesToInferWithoutEvidence() {
+        var service = new DiagnosticOrchestrator(
+                query -> { throw new AssertionError("Retrieved knowledge without diagnostic evidence"); },
+                (signals, knowledge) -> { throw new AssertionError("Inferred without diagnostic evidence"); });
+        var query = new RetrievalQuery("fixture", "Synthetic query",
+                new AuthorizationScope(UUID.randomUUID(), "1", "2", null, "fixture"),
+                List.of(CorpusKind.AUTHORIZED_TECHNICAL_DOCUMENTATION), 1);
+        assertThatThrownBy(() -> service.diagnose(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), query, List.of()))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("Diagnostic evidence is required");
+    }
+
     @Test
     void requiresEachCitationToResolveToExactlyOneLink() {
         var context = UUID.randomUUID();
@@ -44,5 +57,24 @@ class DiagnosticOrchestratorTest {
                         hypothesis.evidenceIds(), List.of(match.chunkId(), match.chunkId())));
         assertThatThrownBy(() -> duplicateCitation.diagnose(context, execution, incident, query, List.of(evidence)))
                 .hasMessage("Invalid diagnostic hypothesis or citations");
+
+        assertRejected(query, evidence, List.of(), List.of(), "missing_evidence_citation");
+        assertRejected(query, evidence, List.of(UUID.randomUUID()), List.of(), "unknown_evidence_citation");
+        assertRejected(query, evidence, List.of(evidence.evidenceId(), evidence.evidenceId()),
+                List.of(), "duplicate_evidence_citation");
+        assertRejected(query, evidence, List.of(evidence.evidenceId()), List.of(match.chunkId()),
+                "unknown_chunk_citation");
+    }
+
+    private static void assertRejected(RetrievalQuery query, Evidence evidence, List<UUID> evidenceIds,
+            List<UUID> chunkIds, String reason) {
+        var service = new DiagnosticOrchestrator(request -> new RetrievalResult.NoMatch(request.correlationId()),
+                (signals, knowledge) -> new Hypothesis("DNS failure", "Check DNS", "Cause unknown", evidenceIds, chunkIds));
+        assertThatThrownBy(() -> service.diagnose(evidence.originContextId(), UUID.randomUUID(),
+                        UUID.randomUUID(), query, List.of(evidence)))
+                .isInstanceOfSatisfying(InvalidHypothesis.class, failure -> {
+                    assertThat(failure.reason()).isEqualTo(reason);
+                    assertThat(failure).hasMessage("Invalid diagnostic hypothesis or citations");
+                });
     }
 }

@@ -38,13 +38,16 @@ On Windows:
 .\mvnw.cmd verify
 ```
 
-The Azure OpenAI v1 adapter is available for explicit composition through
-`AzureOpenAiInference`. It takes an authorized Azure OpenAI resource origin,
-deployment name, Entra credential, and an explicit timeout. It sends only
-sanitized evidence and authorized knowledge with their citation IDs and
-requires structured diagnostic output. The default application and the local
-deterministic scenario keep their existing composition. Live provider access
-and a specific model remain subject to PD-026 and the DEV deployment gates.
+The Azure OpenAI v1 adapter, `AzureOpenAiInference`, is available through
+explicit composition. Supply the approved HTTPS account origin, deployment,
+Entra credential and bounded timeout. The adapter sends masked evidence and
+authorized RAG chunks. It requires strict JSON Schema with a primary evidence
+citation and enumerates authorized IDs. It represents no RAG matches with a
+null wire value, which becomes an empty source list. Recommendation validates
+every citation again and logs only a fixed rejection reason. Normal tests and
+default composition retain their existing behavior. Use the [local owner-chain
+runbook](https://github.com/pipesor-org/pipesor-evidence-correlation-engine/blob/main/docs/local-diagnostic-demo.md)
+for the opt-in Foundry path. Production and interactive access remain gated.
 
 The application requires `PIPESOR_RAG_ENDPOINT` and `PIPESOR_RAG_AUDIENCE`.
 The endpoint must use HTTPS and the audience has the form `api://<application-id>`.
