@@ -1,0 +1,32 @@
+{
+  "contextId": "c90ca77c-6c9c-4c55-9b23-3c683dff2c06",
+  "executionId": "509ccce0-64a4-570b-a886-7bf93c4b37f3",
+  "incidentId": "74dda51d-f6aa-5090-be05-e9215b58c376",
+  "correlationId": "external-logchunks-e05",
+  "hypothesis": {
+    "probableCause": "The error indicates that the file 'libproc.h' could not be found, potentially due to absence of the library or incorrect include paths.",
+    "recommendation": "Ensure that the prerequisite library is installed and accessible in the system's include path for the library dependencies.",
+    "limitations": "This hypothesis is limited by the provided evidence and knowledge, and the inability to interactively debug or verify the context of the issue.",
+    "evidenceIds": [
+      "cb033bb6-97f4-5329-b85f-9ee924c31bd1"
+    ],
+    "chunkIds": [
+      "8c413494-a42e-5609-8c5e-6f12f32c6e6c"
+    ]
+  },
+  "evidence": [
+    {
+      "evidenceId": "cb033bb6-97f4-5329-b85f-9ee924c31bd1",
+      "originContextId": "c90ca77c-6c9c-4c55-9b23-3c683dff2c06",
+      "stage": "BUILD",
+      "content": "2026-11-08T09:20:31Z ##[error]fatal error: 'libproc.h' file not found"
+    }
+  ],
+  "sources": [
+    {
+      "documentId": "c2adcf9f-855e-5b4d-bec7-fd9417a9ddd5",
+      "chunkId": "8c413494-a42e-5609-8c5e-6f12f32c6e6c",
+      "provenance": "synthetic://pipesor/local-dev/failure-triage/v1#chunk=0"
+    }
+  ]
+}
