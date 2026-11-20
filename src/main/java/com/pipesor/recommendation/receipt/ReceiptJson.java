@@ -80,7 +80,7 @@ public final class ReceiptJson {
             UUID lastOrigin = null;
             String lastTrace = null;
             for (JsonNode signal : signals) {
-                fields(signal, "evidence_id", "origin_context_id", "correlation_id", "stage", "summary", "content");
+                fieldsWithOptionalLocator(signal);
                 if (!ids.add(id(signal, "evidence_id"))) throw invalid();
                 lastOrigin = id(signal, "origin_context_id");
                 if (!origins.add(lastOrigin)) throw invalid();
@@ -88,6 +88,10 @@ public final class ReceiptJson {
                 if (!STAGES.contains(string(signal, "stage"))) throw invalid();
                 protectedText(string(signal, "summary"));
                 protectedText(string(signal, "content"));
+                if (signal.has("source_locator") && !string(signal, "source_locator").matches(
+                        "v2:job:[1-9][0-9]*:member:[0-9]{1,9}_verify\\.txt:lines:([1-9][0-9]{0,8})-\\1:sha256:[0-9a-f]{64}")) {
+                    throw invalid();
+                }
             }
             if (!ids.equals(new HashSet<>(evidence)) || !operation.equals(lastOrigin) || !trace.equals(lastTrace)) throw invalid();
             byte[] canonical = JSON.writeValueAsBytes(sorted(body));
@@ -117,6 +121,13 @@ public final class ReceiptJson {
 
     private static void fields(JsonNode value, String... expected) {
         if (value == null || !value.isObject() || !Set.copyOf(value.propertyNames()).equals(Set.of(expected))) throw invalid();
+    }
+    private static void fieldsWithOptionalLocator(JsonNode value) {
+        if (value == null || !value.isObject()) throw invalid();
+        var actual = Set.copyOf(value.propertyNames());
+        var base = Set.of("evidence_id", "origin_context_id", "correlation_id", "stage", "summary", "content");
+        if (!actual.equals(base) && !actual.equals(Set.of("evidence_id", "origin_context_id", "correlation_id",
+                "stage", "summary", "content", "source_locator"))) throw invalid();
     }
     private static String string(JsonNode object, String name) { return string(object.get(name)); }
     private static String string(JsonNode value) {
