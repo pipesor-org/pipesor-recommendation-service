@@ -276,7 +276,8 @@ class ReviewLifecycleTest {
 
     private static Diagnosis synthetic(String cause) {
         var context = UUID.randomUUID();
-        var signal = new Evidence(UUID.randomUUID(), context, "BUILD", "Synthetic build step exited with 1.");
+        var signal = new Evidence(UUID.randomUUID(), context, "BUILD", "Synthetic build step exited with 1.",
+                "v2:job:701:member:0_verify.txt:lines:2-2:sha256:" + "a".repeat(64));
         return new Diagnosis(context, UUID.randomUUID(), UUID.randomUUID(), "p3-synthetic",
                 new Hypothesis(cause, "Inspect the build log.", "Only fixture input.", List.of(signal.evidenceId()),
                         List.of()), List.of(signal), List.of());
