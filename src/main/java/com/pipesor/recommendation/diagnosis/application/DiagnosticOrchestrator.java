@@ -86,7 +86,13 @@ public final class DiagnosticOrchestrator {
         Hypothesis infer(List<Evidence> evidence, List<KnowledgeMatch> knowledge);
     }
 
-    public record Evidence(UUID evidenceId, UUID originContextId, String stage, String content) {}
+    public record Evidence(UUID evidenceId, UUID originContextId, String stage, String content,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+            String sourceLocator) {
+        public Evidence(UUID evidenceId, UUID originContextId, String stage, String content) {
+            this(evidenceId, originContextId, stage, content, null);
+        }
+    }
     public record Hypothesis(String probableCause, String recommendation, String limitations,
                              List<UUID> evidenceIds, List<UUID> chunkIds) {
         public Hypothesis {
