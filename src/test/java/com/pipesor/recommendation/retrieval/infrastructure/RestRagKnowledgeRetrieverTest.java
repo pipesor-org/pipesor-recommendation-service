@@ -34,6 +34,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 class RestRagKnowledgeRetrieverTest {
     private static final String CORRELATION_ID = "corr-123";
+    private static final URI ENDPOINT = URI.create("https://rag.internal");
     private MockRestServiceServer server;
     private RestRagKnowledgeRetriever retriever;
 
@@ -41,18 +42,15 @@ class RestRagKnowledgeRetrieverTest {
     void setUp() {
         var builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        var properties = new RagClientProperties(
-                URI.create("https://rag.internal"),
-                "api://11111111-1111-1111-1111-111111111111",
-                Duration.ofSeconds(15));
-        retriever = new RestRagKnowledgeRetriever(builder, properties, () -> "entra-token");
+        var properties = new RagClientProperties(Duration.ofSeconds(15));
+        retriever = new RestRagKnowledgeRetriever(builder, ENDPOINT, properties, () -> "workload-token");
     }
 
     @Test
     void sendsTheApprovedContractAndPreservesMatchProvenance() {
         server.expect(once(), requestTo("https://rag.internal/internal/v1/retrieval/query"))
                 .andExpect(method(HttpMethod.POST))
-                .andExpect(header("Authorization", "Bearer entra-token"))
+                .andExpect(header("Authorization", "Bearer workload-token"))
                 .andExpect(header("X-Correlation-ID", CORRELATION_ID))
                 .andExpect(jsonPath("$.contract_version").value("1.0"))
                 .andExpect(jsonPath("$.authorization_scope.github_repository_id").value("456"))
@@ -98,7 +96,7 @@ class RestRagKnowledgeRetrieverTest {
         var properties = properties();
         var time = new AtomicLong();
         var delays = new AtomicInteger();
-        retriever = new RestRagKnowledgeRetriever(builder, properties, () -> "entra-token", time::get,
+        retriever = new RestRagKnowledgeRetriever(builder, ENDPOINT, properties, () -> "workload-token", time::get,
                 milliseconds -> {
                     delays.incrementAndGet();
                     assertThat(milliseconds).isEqualTo(2000);
@@ -165,10 +163,7 @@ class RestRagKnowledgeRetrieverTest {
     }
 
     private static RagClientProperties properties() {
-        return new RagClientProperties(
-                URI.create("https://rag.internal"),
-                "api://11111111-1111-1111-1111-111111111111",
-                Duration.ofSeconds(15));
+        return new RagClientProperties(Duration.ofSeconds(15));
     }
 
     private static String matchesResponse() {

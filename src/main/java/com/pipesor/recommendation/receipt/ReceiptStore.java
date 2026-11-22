@@ -53,6 +53,14 @@ public final class ReceiptStore {
                 } finally {
                     evidence.free();
                 }
+                if (inserted == 1) {
+                    // Durable intent for the diagnosis worker, committed atomically with the receipt.
+                    try (var statement = connection.prepareStatement(
+                            "INSERT INTO diagnosis.diagnosis_jobs (context_id) VALUES (?) ON CONFLICT DO NOTHING")) {
+                        statement.setObject(1, input.operationId());
+                        statement.executeUpdate();
+                    }
+                }
                 if (inserted == 0) {
                     // A separate statement observes the concurrent winner after ON CONFLICT waits.
                     try (var statement = connection.prepareStatement("""
