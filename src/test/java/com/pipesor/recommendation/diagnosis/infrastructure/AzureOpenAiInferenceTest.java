@@ -123,6 +123,17 @@ class AzureOpenAiInferenceTest {
         server.verify();
     }
 
+    @Test
+    void toleratesARepeatedPrimaryCitationButNotOtherDuplicates() {
+        // GPT-4o repeated the single evidence id in additionalEvidenceIds on the authentic run 43055757606.
+        var repeated = JsonMapper.builder().build().readTree(hypothesis(EVIDENCE_ID));
+        ((tools.jackson.databind.node.ObjectNode) repeated).putArray("additionalEvidenceIds").add(EVIDENCE_ID.toString());
+        server.expect(requestTo(PATH)).andRespond(withSuccess(reply("stop", repeated.toString()), MediaType.APPLICATION_JSON));
+        var result = orchestrator().diagnose(OTHER_ID, OTHER_ID, OTHER_ID, query(), SIGNALS);
+        assertThat(result.hypothesis().evidenceIds()).containsExactly(EVIDENCE_ID);
+        server.verify();
+    }
+
     private static InferenceProperties properties(URI endpoint) {
         return new InferenceProperties(endpoint, "fixture-deployment", null, Duration.ofSeconds(2), 512);
     }
