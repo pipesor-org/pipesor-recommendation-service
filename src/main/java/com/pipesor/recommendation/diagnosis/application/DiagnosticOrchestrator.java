@@ -93,13 +93,23 @@ public final class DiagnosticOrchestrator {
             this(evidenceId, originContextId, stage, content, null);
         }
     }
+    /** Inferred model output. {@code model} records which provider deployment produced it, when known. */
     public record Hypothesis(String probableCause, String recommendation, String limitations,
-                             List<UUID> evidenceIds, List<UUID> chunkIds) {
+                             List<UUID> evidenceIds, List<UUID> chunkIds,
+                             @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+                             Model model) {
         public Hypothesis {
             evidenceIds = List.copyOf(evidenceIds);
             chunkIds = List.copyOf(chunkIds);
         }
+
+        public Hypothesis(String probableCause, String recommendation, String limitations,
+                          List<UUID> evidenceIds, List<UUID> chunkIds) {
+            this(probableCause, recommendation, limitations, evidenceIds, chunkIds, null);
+        }
     }
+    /** Provenance of an inferred hypothesis: deployment, provider-reported model version and prompt version. */
+    public record Model(String deployment, String modelVersion, String promptVersion) {}
     public record Source(UUID documentId, UUID chunkId, String provenance) {}
     public record Diagnosis(UUID contextId, UUID executionId, UUID incidentId, String correlationId,
                             Hypothesis hypothesis, List<Evidence> evidence, List<Source> sources) {}

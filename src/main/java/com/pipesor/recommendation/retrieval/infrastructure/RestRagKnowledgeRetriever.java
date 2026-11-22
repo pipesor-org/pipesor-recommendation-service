@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.net.URI;
 import java.time.Duration;
 import java.time.Clock;
 import java.time.ZonedDateTime;
@@ -33,21 +34,22 @@ public final class RestRagKnowledgeRetriever implements RagKnowledgeRetriever {
     private final RetryDelay retryDelay;
     private final Clock wallClock;
 
-    public RestRagKnowledgeRetriever(RestClient.Builder builder, RagClientProperties properties,
+    /** {@code endpoint} must already satisfy the platform transport policy. */
+    public RestRagKnowledgeRetriever(RestClient.Builder builder, URI endpoint, RagClientProperties properties,
                                      RagAccessTokenProvider tokenProvider) {
-        this(builder, properties, tokenProvider, System::nanoTime, Thread::sleep, Clock.systemUTC());
+        this(builder, endpoint, properties, tokenProvider, System::nanoTime, Thread::sleep, Clock.systemUTC());
     }
 
-    RestRagKnowledgeRetriever(RestClient.Builder builder, RagClientProperties properties,
+    RestRagKnowledgeRetriever(RestClient.Builder builder, URI endpoint, RagClientProperties properties,
                               RagAccessTokenProvider tokenProvider, LongSupplier nanoTime,
                               RetryDelay retryDelay) {
-        this(builder, properties, tokenProvider, nanoTime, retryDelay, Clock.systemUTC());
+        this(builder, endpoint, properties, tokenProvider, nanoTime, retryDelay, Clock.systemUTC());
     }
 
-    RestRagKnowledgeRetriever(RestClient.Builder builder, RagClientProperties properties,
+    RestRagKnowledgeRetriever(RestClient.Builder builder, URI endpoint, RagClientProperties properties,
                               RagAccessTokenProvider tokenProvider, LongSupplier nanoTime,
                               RetryDelay retryDelay, Clock wallClock) {
-        this.client = builder.baseUrl(properties.endpoint().toString()).build();
+        this.client = builder.baseUrl(java.util.Objects.requireNonNull(endpoint).toString()).build();
         this.tokenProvider = tokenProvider;
         this.totalBudget = properties.timeout();
         this.nanoTime = nanoTime;

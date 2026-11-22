@@ -43,6 +43,18 @@ class ReceiptStoreTest {
         assertThat(row(input.operationId())).isEqualTo(before);
         assertThat(count(input.operationId())).isEqualTo(1);
         assertThat(before).contains(input.scopeRevision(), "protected summary", "protected content");
+        assertThat(jobs(input.operationId())).isEqualTo(1);
+    }
+
+    @Test
+    void databaseAcceptsGeneralizedLocatorShapeAndRejectsMalformedLocators() throws Exception {
+        var digest = "c".repeat(64);
+        var accepted = withLocator("v2:job:9:member:build%2F3_Run%20mvn.txt:lines:10-40:sha256:" + digest);
+        assertThat(new ReceiptStore(dataSource).accept(accepted)).isTrue();
+        var malformed = withLocator("v2:job:9:member:build/3.txt:lines:10-40:sha256:" + digest);
+        assertThrows(ReceiptStore.Unavailable.class, () -> new ReceiptStore(dataSource).accept(malformed));
+        assertThat(count(malformed.operationId())).isZero();
+        assertThat(jobs(malformed.operationId())).isZero();
     }
 
     @Test
@@ -137,6 +149,23 @@ class ReceiptStoreTest {
         return new ReceiptSubmission(id, UUID.randomUUID(), "123", "456", null, "scope-12", UUID.randomUUID(),
                 UUID.randomUUID(), List.of(evidence), "protected operational summary", "synthetic-correlation",
                 Instant.parse("2026-11-17T10:00:00.000001Z"), signals, "v1:sha256:" + "a".repeat(64));
+    }
+
+    private static ReceiptSubmission withLocator(String locator) {
+        var input = fixture();
+        var signals = input.signalsJson().replace("\"content\":\"protected content\"}",
+                "\"content\":\"protected content\",\"source_locator\":\"" + locator + "\"}");
+        return new ReceiptSubmission(input.operationId(), input.tenantId(), input.installationId(), input.repositoryId(),
+                input.pipelineId(), input.scopeRevision(), input.incidentId(), input.executionId(), input.evidenceIds(),
+                input.summary(), input.correlationId(), input.contextCreatedAt(), signals, input.fingerprint());
+    }
+
+    private static int jobs(UUID id) throws Exception {
+        try (var connection = dataSource.getConnection(); var statement = connection.prepareStatement(
+                "SELECT count(*) FROM diagnosis.diagnosis_jobs WHERE context_id=? AND state='PENDING'")) {
+            statement.setObject(1, id);
+            try (var rows = statement.executeQuery()) { rows.next(); return rows.getInt(1); }
+        }
     }
 
     private static int count(UUID id) throws Exception {

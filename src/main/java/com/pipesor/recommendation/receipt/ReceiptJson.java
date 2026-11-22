@@ -88,8 +88,7 @@ public final class ReceiptJson {
                 if (!STAGES.contains(string(signal, "stage"))) throw invalid();
                 protectedText(string(signal, "summary"));
                 protectedText(string(signal, "content"));
-                if (signal.has("source_locator") && !string(signal, "source_locator").matches(
-                        "v2:job:[1-9][0-9]*:member:[0-9]{1,9}_verify\\.txt:lines:([1-9][0-9]{0,8})-\\1:sha256:[0-9a-f]{64}")) {
+                if (signal.has("source_locator") && !SourceLocators.valid(string(signal, "source_locator"))) {
                     throw invalid();
                 }
             }

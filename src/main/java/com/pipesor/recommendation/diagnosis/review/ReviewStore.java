@@ -27,8 +27,8 @@ public final class ReviewStore {
         try (var connection = source.getConnection();
              var insert = connection.prepareStatement("""
                      INSERT INTO diagnosis.diagnoses
-                       (id, incident_id, version, correlation_id, authorization_scope, output)
-                     VALUES (?, ?, ?, ?, ?::jsonb, ?::jsonb)
+                       (id, incident_id, version, correlation_id, authorization_scope, output, context_id, execution_id)
+                     VALUES (?, ?, ?, ?, ?::jsonb, ?::jsonb, ?, ?)
                      """)) {
             insert.setObject(1, diagnosticId);
             insert.setObject(2, output.incidentId());
@@ -36,6 +36,8 @@ public final class ReviewStore {
             insert.setString(4, output.correlationId());
             insert.setString(5, JSON.writeValueAsString(scope));
             insert.setString(6, JSON.writeValueAsString(output));
+            insert.setObject(7, output.contextId());
+            insert.setObject(8, output.executionId());
             insert.executeUpdate();
         }
     }
@@ -78,8 +80,9 @@ public final class ReviewStore {
                 int version;
                 try (var insert = connection.prepareStatement("""
                         INSERT INTO diagnosis.diagnoses
-                            (id, incident_id, version, correlation_id, authorization_scope, output, admission_fingerprint)
-                        SELECT ?, ?, COALESCE(MAX(version), 0) + 1, ?, ?::jsonb, ?::jsonb, ?
+                            (id, incident_id, version, correlation_id, authorization_scope, output, admission_fingerprint,
+                             context_id, execution_id)
+                        SELECT ?, ?, COALESCE(MAX(version), 0) + 1, ?, ?::jsonb, ?::jsonb, ?, ?, ?
                         FROM diagnosis.diagnoses WHERE incident_id = ?
                         RETURNING version
                         """)) {
@@ -89,7 +92,9 @@ public final class ReviewStore {
                     insert.setString(4, JSON.writeValueAsString(scope));
                     insert.setString(5, JSON.writeValueAsString(output));
                     insert.setString(6, fingerprint);
-                    insert.setObject(7, output.incidentId());
+                    insert.setObject(7, output.contextId());
+                    insert.setObject(8, output.executionId());
+                    insert.setObject(9, output.incidentId());
                     try (var row = insert.executeQuery()) {
                         if (!row.next()) throw new IllegalStateException("Diagnosis admission returned no version");
                         version = row.getInt("version");
@@ -107,7 +112,7 @@ public final class ReviewStore {
 
     public record Admission(UUID diagnosticId, int version, Diagnosis output) {}
 
-    Snapshot read(UUID id) throws SQLException {
+    public Snapshot read(UUID id) throws SQLException {
         try (var connection = source.getConnection()) {
             return read(connection, id, false);
         }
@@ -144,7 +149,7 @@ public final class ReviewStore {
         }
     }
 
-    Snapshot append(Snapshot target, UUID requestId, String reviewer, Submission submission) throws SQLException {
+    public Snapshot append(Snapshot target, UUID requestId, String reviewer, Submission submission) throws SQLException {
         try (var connection = source.getConnection()) {
             connection.setAutoCommit(false);
             try {
@@ -197,6 +202,6 @@ public final class ReviewStore {
                              String actualCause, String correctedRecommendation) {}
     public record Review(UUID id, int revision, String reviewer, Decision decision, OffsetDateTime timestamp,
                          String correlationId, String actualCause, String comment, String correctedRecommendation) {}
-    record Snapshot(UUID diagnosticId, int version, AuthorizationScope scope, Diagnosis original, List<Review> history) {}
+    public record Snapshot(UUID diagnosticId, int version, AuthorizationScope scope, Diagnosis original, List<Review> history) {}
     public static final class Conflict extends RuntimeException {}
 }

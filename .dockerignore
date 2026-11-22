@@ -1,0 +1,4 @@
+**
+!Dockerfile
+!target/
+!target/pipesor-recommendation-service-0.1.0-SNAPSHOT.jar
