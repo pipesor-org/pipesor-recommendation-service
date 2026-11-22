@@ -31,7 +31,7 @@ public final class GitHubActionsJwtDecoder implements JwtDecoder {
 
     public GitHubActionsJwtDecoder(URI jwksUri, String audience, Duration skew, TransportPolicy transport) {
         this(jwksUri, audience, skew, transport, uri -> NimbusJwtDecoder.withJwkSetUri(uri.toString())
-                .jwsAlgorithm(SignatureAlgorithm.RS256).build());
+                .jwsAlgorithm(SignatureAlgorithm.RS256).restOperations(PlatformJwtDecoder.jwksClient()).build());
     }
 
     GitHubActionsJwtDecoder(URI jwksUri, String audience, Duration skew, TransportPolicy transport,

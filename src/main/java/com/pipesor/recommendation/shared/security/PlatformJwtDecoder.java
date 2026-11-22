@@ -36,7 +36,7 @@ public final class PlatformJwtDecoder implements JwtDecoder {
 
     public PlatformJwtDecoder(PlatformSecurityProperties settings, TransportPolicy transport) {
         this(settings, transport, uri -> NimbusJwtDecoder.withJwkSetUri(uri.toString())
-                .jwsAlgorithm(SignatureAlgorithm.RS256).build());
+                .jwsAlgorithm(SignatureAlgorithm.RS256).restOperations(jwksClient()).build());
     }
 
     PlatformJwtDecoder(PlatformSecurityProperties settings, TransportPolicy transport,
@@ -58,6 +58,14 @@ public final class PlatformJwtDecoder implements JwtDecoder {
             decoders.put(PlatformIds.SESSION_ISSUER, decoder);
         }
         byIssuer = Map.copyOf(decoders);
+    }
+
+    /** Key sets are fetched with short bounds so an unreachable issuer fails a request fast instead of stalling it. */
+    static org.springframework.web.client.RestTemplate jwksClient() {
+        var factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(java.time.Duration.ofSeconds(2));
+        factory.setReadTimeout(java.time.Duration.ofSeconds(3));
+        return new org.springframework.web.client.RestTemplate(factory);
     }
 
     @Override public Jwt decode(String token) throws JwtException {
