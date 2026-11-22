@@ -161,7 +161,7 @@ public final class ReviewStore {
                     if (!previous.id().equals(requestId)) continue;
                     if (!previous.reviewer().equals(reviewer) || previous.revision() - 1 != submission.expectedRevision()
                             || previous.decision() != submission.decision()
-                            || !previous.comment().equals(submission.comment())
+                            || !Objects.equals(previous.comment(), submission.comment())
                             || !Objects.equals(previous.actualCause(), submission.actualCause())
                             || !Objects.equals(previous.correctedRecommendation(), submission.correctedRecommendation())) {
                         throw new Conflict();
