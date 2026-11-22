@@ -85,6 +85,8 @@ public class PlatformSecurityConfiguration {
     SecurityFilterChain platformSecurityFilterChain(HttpSecurity http, JwtDecoder platformJwtDecoder,
             PlatformRoutes routes) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
+                .logout(AbstractHttpConfigurer::disable)
+                .addFilterBefore(new UndisclosedEndpointsFilter(), org.springframework.security.web.session.DisableEncodeUrlFilter.class)
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .requestCache(AbstractHttpConfigurer::disable)
