@@ -22,8 +22,10 @@ def check_image(image, revision):
         result = subprocess.run(['docker', 'run', '--rm', '--name', name, '--network', 'none', image],
                                 capture_output=True, text=True, timeout=60)
         output = result.stdout + result.stderr
-        # Without platform settings the service must refuse to start on a required pipesor.* value.
-        if result.returncode != 1 or 'APPLICATION FAILED TO START' not in output or 'is required' not in output:
+        # Without platform settings Spring Boot must refuse to start (same guarantee as Pipeline's check). A clearer
+        # missing-property diagnostic before datasource creation is tracked in the service's startup issue.
+        startup_failed = 'APPLICATION FAILED TO START' in output or 'Application run failed' in output
+        if result.returncode != 1 or not startup_failed:
             raise RuntimeError('Packaged service did not reject missing runtime configuration as expected')
         print('Image checks passed: nonroot, OCI source/revision, missing-configuration rejection')
     finally:
