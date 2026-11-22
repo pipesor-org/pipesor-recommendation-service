@@ -1,0 +1,92 @@
+name: Release candidate (disabled)
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: Original successful main CI run
+        required: false
+        type: string
+      candidate_run_attempt:
+        description: Original successful CI attempt
+        required: false
+        type: string
+      candidate_release:
+        description: Published RC/stable manifest instead of an expiring CI artifact
+        required: false
+        type: string
+      kind:
+        description: RC is optional; stable retains the preprod evidence gate
+        required: true
+        type: choice
+        options: [rc, stable]
+      version:
+        description: Explicit X.Y.Z target before 1.0; empty once the stable base is 1.x+
+        required: false
+        type: string
+      confirm_image:
+        description: Exact existing ghcr.io repository@sha256 digest
+        required: true
+        type: string
+      authorization_ref:
+        description: Repository issue/PR recording publication authorization
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: recommendation-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # Publication needs separate activation; no dispatch/variable can enable this source.
+    if: ${{ false && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+      deployments: read
+    env:
+      RELEASE_ENABLED: ${{ vars.RELEASE_ENABLED }}
+      CONFIRM_IMAGE: ${{ inputs.confirm_image }}
+      AUTHORIZATION_REF: ${{ inputs.authorization_ref }}
+      CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+      CANDIDATE_RUN_ATTEMPT: ${{ inputs.candidate_run_attempt }}
+      CANDIDATE_RELEASE: ${{ inputs.candidate_release }}
+      RELEASE_KIND: ${{ inputs.kind }}
+      REQUESTED_VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - name: Get retained candidate and original CI attempt evidence
+        run: |
+          test "${ACT:-}" != 'true'
+          python3 .github/delivery/deployment.py fetch \
+            --candidate .delivery/candidate/candidate.json \
+            --run .delivery/candidate-run.json \
+            --output .delivery/release-fetch.json
+      - name: Publish a name for the existing digest, never rebuild
+        run: >-
+          bun .github/delivery/release.mjs publish --candidate .delivery/candidate/candidate.json
+          --run .delivery/candidate-run.json --kind "$RELEASE_KIND"
+          --version "$REQUESTED_VERSION"
+      - name: Preserve the release plan even on partial publication
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .delivery/release/
+          if-no-files-found: ignore
+          retention-days: 90
