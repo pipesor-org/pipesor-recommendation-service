@@ -1,9 +1,95 @@
 spring:
   application:
     name: pipesor-recommendation-service
+  datasource:
+    url: ${PIPESOR_DATABASE_URL}
+    username: ${PIPESOR_DATABASE_USERNAME:}
+    password: ${PIPESOR_DATABASE_PASSWORD:}
+  flyway:
+    enabled: true
+    schemas: diagnosis
+    default-schema: diagnosis
+  threads:
+    virtual:
+      enabled: true
 
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+      group:
+        readiness:
+          include: readinessState,db
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+springdoc:
+  api-docs:
+    enabled: false
+
+# Identity settings bind from the environment by relaxed binding (runtime manifest):
+# PIPESOR_TENANT_ID, PIPESOR_SIGNING_KEY_FILE | PIPESOR_SIGNING_KEY_ID,
+# PIPESOR_SECURITY_TRUSTEDWORKLOADS_<n>_{ID,JWKSURI,ROLES}, PIPESOR_SECURITY_SESSION_JWKSURI.
 pipesor:
+  workload-id: ${PIPESOR_WORKLOAD_ID:recommendation}
+  dashboard-origin: ${PIPESOR_DASHBOARD_ORIGIN:}
+  security:
+    audience: ${PIPESOR_SECURITY_AUDIENCE:urn:pipesor:api:recommendation}
+  endpoints:
+    rag: ${PIPESOR_ENDPOINTS_RAG}
+    pipeline: ${PIPESOR_ENDPOINTS_PIPELINE}
   rag:
-    endpoint: ${PIPESOR_RAG_ENDPOINT}
-    audience: ${PIPESOR_RAG_AUDIENCE}
     timeout: ${PIPESOR_RAG_TIMEOUT:15s}
+  pipeline:
+    timeout: 5s
+  inference:
+    endpoint: ${PIPESOR_INFERENCE_ENDPOINT}
+    deployment: ${PIPESOR_INFERENCE_DEPLOYMENT:pipesor-dev-diagnostics}
+    scope: https://ai.azure.com/.default
+    timeout: ${PIPESOR_INFERENCE_TIMEOUT:60s}
+    max-completion-tokens: ${PIPESOR_INFERENCE_MAX_COMPLETION_TOKENS:1024}
+  receipt:
+    max-request-bytes: 262144
+  diagnosis-worker:
+    enabled: ${PIPESOR_DIAGNOSIS_WORKER_ENABLED:true}
+    poll-interval: 5s
+    batch-size: 4
+    lease: 10m
+    initial-backoff: 30s
+    max-backoff: 30m
+    max-attempts: 8
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+springdoc:
+  api-docs:
+    enabled: true
+pipesor:
+  inference:
+    # Shared development Foundry account; DefaultAzureCredential uses the developer's az login.
+    endpoint: ${PIPESOR_INFERENCE_ENDPOINT:https://ai-pipesor-dev-04f339b7.services.ai.azure.com}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: azure
+  datasource:
+    # Passwordless Entra authentication with the workload identity.
+    url: ${PIPESOR_DATABASE_URL}&authenticationPluginClassName=com.azure.identity.extensions.jdbc.postgresql.AzurePostgresqlAuthenticationPlugin

@@ -46,13 +46,15 @@ class AzureOpenAiInferenceTest {
         return Mono.just(new AccessToken("synthetic-entra-token", OffsetDateTime.now().plusMinutes(5)));
     };
     private final AzureOpenAiInference inference =
-            new AzureOpenAiInference(ENDPOINT, "fixture-deployment", credential, Duration.ofSeconds(2), builder.build());
+            new AzureOpenAiInference(properties(ENDPOINT), credential, builder.build());
 
     @Test
     void sendsScopedRequestAndComposesProviderHypothesisWithEvidence() {
         server.expect(requestTo(PATH))
                 .andExpect(header("Authorization", "Bearer synthetic-entra-token"))
                 .andExpect(jsonPath("$.model").value("fixture-deployment"))
+                .andExpect(jsonPath("$.max_completion_tokens").value(512))
+                .andExpect(jsonPath("$.messages[0].content").value(AzureOpenAiInference.SYSTEM_PROMPT))
                 .andExpect(jsonPath("$.response_format.json_schema.strict").value(true))
                 .andExpect(jsonPath("$.response_format.json_schema.schema.properties.evidenceId.enum[0]").value(EVIDENCE_ID.toString()))
                 .andExpect(jsonPath("$.response_format.json_schema.schema.properties.chunkIds.type").value("null"))
@@ -62,6 +64,8 @@ class AzureOpenAiInferenceTest {
                 .andRespond(withSuccess(reply("stop", hypothesis(EVIDENCE_ID)), MediaType.APPLICATION_JSON));
         var result = orchestrator().diagnose(OTHER_ID, OTHER_ID, OTHER_ID, query(), SIGNALS);
         assertThat(result.hypothesis().probableCause()).isEqualTo("Host resolution failed");
+        assertThat(result.hypothesis().model()).isEqualTo(new DiagnosticOrchestrator.Model("fixture-deployment",
+                "gpt-fixture-2026-01-01", AzureOpenAiInference.PROMPT_VERSION));
         assertThat(result.evidence()).containsExactlyElementsOf(SIGNALS);
         assertThat(result.correlationId()).isEqualTo("fixture-correlation");
         server.verify();
@@ -70,8 +74,7 @@ class AzureOpenAiInferenceTest {
     @Test
     void acceptsOnlyAnAzureAccountOriginForFoundryChat() {
         var endpoint = URI.create("https://synthetic.services.ai.azure.com");
-        var provider = new AzureOpenAiInference(endpoint, "fixture-deployment", credential,
-                Duration.ofSeconds(2), builder.build());
+        var provider = new AzureOpenAiInference(properties(endpoint), credential, builder.build());
         server.expect(requestTo(endpoint + "/openai/v1/chat/completions"))
                 .andExpect(header("Authorization", "Bearer synthetic-entra-token"))
                 .andRespond(withSuccess(reply("stop", hypothesis(EVIDENCE_ID)), MediaType.APPLICATION_JSON));
@@ -81,8 +84,8 @@ class AzureOpenAiInferenceTest {
         for (var value : List.of("https://synthetic.services.ai.azure.com.example.invalid",
                 "https://synthetic.services.ai.azure.com/api/projects/demo",
                 "http://synthetic.services.ai.azure.com")) {
-            assertThatThrownBy(() -> new AzureOpenAiInference(URI.create(value), "fixture-deployment", credential,
-                    Duration.ofSeconds(2), builder.build())).isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> new AzureOpenAiInference(properties(URI.create(value)), credential,
+                    builder.build())).isInstanceOf(IllegalArgumentException.class);
         }
     }
 
@@ -120,6 +123,10 @@ class AzureOpenAiInferenceTest {
         server.verify();
     }
 
+    private static InferenceProperties properties(URI endpoint) {
+        return new InferenceProperties(endpoint, "fixture-deployment", null, Duration.ofSeconds(2), 512);
+    }
+
     private DiagnosticOrchestrator orchestrator() {
         return new DiagnosticOrchestrator(query -> new RetrievalResult.NoMatch(query.correlationId()), inference);
     }
@@ -139,7 +146,7 @@ class AzureOpenAiInferenceTest {
     }
 
     private static String reply(String finish, String content) {
-        return JsonMapper.builder().build().writeValueAsString(Map.of("choices",
+        return JsonMapper.builder().build().writeValueAsString(Map.of("model", "gpt-fixture-2026-01-01", "choices",
                 List.of(Map.of("finish_reason", finish, "message", Map.of("content", content)))));
     }
 }
