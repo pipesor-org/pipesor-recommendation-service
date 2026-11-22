@@ -16,7 +16,7 @@
 
 User direction recorded on 2026-11-06 retains the installed Java 25.0.4.1, Python 3.14.8, Docker 29.9.3 and Git 2.55.0. Java services use Maven (installed: 3.10.0); Azure CLI 2.92.0 is available for separately authorized operations. Select the latest stable dependency versions compatible with that baseline, and pin them when application build/dependency files are introduced. Framework and transitive dependency compatibility must be checked together; availability on this workstation is not container/CI verification. Python dependencies belong in isolated project environments.
 
-This session direction supplements the consulted architecture revision; it does not close PD-032's identity/hash choices or PD-035's base-image and delivery requirements. The executable increment pins Java 21, Spring Boot 4.1.2 and Azure Identity 1.18.1 based on the toolchain actually available for verification; changing the deployment baseline remains separately reviewable.
+This session direction supplements the consulted architecture revision; it does not close PD-032's identity/hash choices or PD-035's base-image and delivery requirements. The service pins Java 25, Spring Boot 4.1.2, Azure Identity 1.19.0 and Key Vault Keys 4.12.1, aligned with the other Java services; changing the deployment baseline remains separately reviewable.
 
 ## Integrated infrastructure baseline
 
@@ -58,7 +58,7 @@ Documented fact: Documented synchronous REST/HTTPS context from correlation and 
 | Secret/authentication requirements | Foundry Entra-only access is selected for the managed foundation; exact inference grants, PostgreSQL/internal-call authentication material and suppliers are unspecified (PD-027/035). Human/API authorization and workflow access remain pending PD-007/034/036; the read-only GitHub App does not authorize workflow API access. | Unknown except explicitly documented mechanisms; PD-027/035. Secret storage is intentionally undecided. |
 | Delivery of values | Proposed: backend maintainers define/validate the required configuration interface; the authorized environment/integration owners supply approved values through the agreed IaC handoff. | Proposal, PD-035; specific people/teams, rotation and distribution mechanism remain unknown. |
 
-The RAG v1 client consumes `PIPESOR_RAG_ENDPOINT`, `PIPESOR_RAG_AUDIENCE` and the optional `PIPESOR_RAG_TIMEOUT` configuration described in the README. It obtains an app-only token through `DefaultAzureCredential`; credentials are not application settings. Other application configuration, secret storage and runtime defaults remain unresolved. The system-assigned ACA identity lifecycle is selected in IaC; its creation, access grants and user/workflow authentication remain separate requirements.
+The RAG v1 client uses `PIPESOR_ENDPOINTS_RAG` and the optional `PIPESOR_RAG_TIMEOUT` described in the README and authenticates with a Pipesor workload token (target `rag`, role `Rag.Query`) under ADR-022; inference uses `DefaultAzureCredential` against the configured Foundry account. Runtime variables follow the pipesor-docs runtime manifest. The system-assigned ACA identity lifecycle is selected in IaC; its creation and access grants remain IaC responsibilities.
 
 ### Local Foundry inference
 
