@@ -1,0 +1,134 @@
+name: Deploy dev (disabled)
+run-name: ${{ inputs.operation }} dev
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Deploy a candidate or restore a verified earlier delivery
+        required: true
+        default: deploy
+        type: choice
+        options: [deploy, rollback]
+      candidate_run_id:
+        description: Successful main CI run ID
+        required: false
+        type: string
+      candidate_run_attempt:
+        description: Successful CI run attempt
+        required: false
+        type: string
+      candidate_release:
+        description: Published vX.Y.Z-rc.N or vX.Y.Z (alternative to CI run/attempt)
+        required: false
+        type: string
+      rollback_run_id:
+        description: Earlier successful deploy.yml run for this exact target (rollback only)
+        required: false
+        type: string
+      rollback_run_attempt:
+        description: Successful attempt of that earlier delivery (rollback only)
+        required: false
+        type: string
+      rollback_confirmed:
+        description: Prior functional acceptance and current schema/config compatibility reviewed
+        required: false
+        default: false
+        type: boolean
+      confirm_image:
+        description: Exact ghcr.io repository@sha256 digest to authorize
+        required: true
+        type: string
+      confirm_target:
+        description: Exact existing dev Container App resource ID to authorize
+        required: true
+        type: string
+      authorization_ref:
+        description: Repository issue/PR recording target/action authorization
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: recommendation-dev-delivery
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # Activation needs a reviewed source change AND explicit target/action authorization.
+    # A repository variable or workflow_dispatch alone cannot enable this job.
+    if: ${{ false && github.ref == 'refs/heads/main' }}
+    # ADR 004's separately validated, disposable deployment runner; never a PR runner.
+    runs-on: [self-hosted, linux, x64, pipesor-dev-deploy]
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    env:
+      ACA_DEPLOYMENT_ENABLED: ${{ vars.ACA_DEPLOYMENT_ENABLED }}
+      ACA_IMAGE_OWNER: ${{ vars.ACA_IMAGE_OWNER }}
+      ACA_RESOURCE_ID: ${{ vars.ACA_RESOURCE_ID }}
+      ACA_ENVIRONMENT_ID: ${{ vars.ACA_ENVIRONMENT_ID }}
+      ACA_CONTAINER_NAME: ${{ vars.ACA_CONTAINER_NAME }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      DEPLOYMENT_OPERATION: ${{ inputs.operation }}
+      CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+      CANDIDATE_RUN_ATTEMPT: ${{ inputs.candidate_run_attempt }}
+      CANDIDATE_RELEASE: ${{ inputs.candidate_release }}
+      ROLLBACK_RUN_ID: ${{ inputs.rollback_run_id }}
+      ROLLBACK_RUN_ATTEMPT: ${{ inputs.rollback_run_attempt }}
+      ROLLBACK_CONFIRMED: ${{ inputs.rollback_confirmed }}
+      CONFIRM_IMAGE: ${{ inputs.confirm_image }}
+      CONFIRM_TARGET: ${{ inputs.confirm_target }}
+      AUTHORIZATION_REF: ${{ inputs.authorization_ref }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Obtain candidate, CI metadata and selected rollback origin
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python3 .github/delivery/deployment.py fetch
+          --candidate .delivery/candidate/candidate.json
+          --run .delivery/candidate-run.json
+          --output deployment-result.json
+      - name: Verify candidate, rollback origin and authorization
+        run: >-
+          python3 .github/delivery/deployment.py validate
+          --candidate .delivery/candidate/candidate.json
+          --run .delivery/candidate-run.json
+          --output .delivery/deployment-request.json
+      - name: Deploy or rollback using the qualified runner CLI
+        # Azure authentication requires a separately authorized change.
+        if: ${{ false && env.ACA_DEPLOYMENT_ENABLED == 'true' }}
+        run: |
+          test "$(az version --query '"azure-cli"' --output tsv)" = '2.92.0'
+          python3 .github/delivery/deployment.py deploy \
+            --candidate .delivery/candidate/candidate.json \
+            --run .delivery/candidate-run.json \
+            --output deployment-result.json
+      - name: Record failure before adapter execution
+        if: ${{ always() }}
+        run: |
+          if [ ! -f deployment-result.json ]; then
+            python3 -c 'import json; from pathlib import Path; Path("deployment-result.json").write_text(json.dumps({"status": "not_started", "phase": "workflow_preflight"}) + "\n")'
+          fi
+      - name: Store control-plane delivery evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: deployment-dev-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            deployment-before.json
+            deployment-result.json
+            .delivery/deployment-request.json
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 90

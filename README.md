@@ -131,6 +131,45 @@ python3 -c 'from pathlib import Path; import tomllib; [tomllib.loads(p.read_text
 
 Follow the organization [contribution policy](https://github.com/pipesor-org/.github/blob/main/CONTRIBUTING.md), [code of conduct](https://github.com/pipesor-org/.github/blob/main/CODE_OF_CONDUCT.md) and [security policy](https://github.com/pipesor-org/.github/blob/main/SECURITY.md). Licensing remains pending.
 
+## CI, images and disabled delivery
+
+[CI](.github/workflows/ci.yml) validates Conventional Commit PR titles, squash messages and commit ranges with commitlint, and requires a nonempty PR body. Headers have a 72-character limit and lowercase scopes. Maintainers squash with the validated PR title. CI repeats commit validation on `main`, runs Maven verification through the shared Java action, and builds and checks the packaged image. Actions are pinned by full commit SHA.
+
+Install Bun 1.4.4 and Lefthook 2.2.2, then run these checks from the repository root with Java 25, Python 3 and Docker available:
+
+```bash
+bun install --frozen-lockfile
+lefthook validate
+bun run setup:hooks
+bun run commitlint --from origin/main --to HEAD
+bun run test:release
+python3 -m unittest discover -s tools -p 'test_*.py'
+python3 -m unittest discover -s .github/delivery -p 'test_*.py'
+./mvnw -B -ntp clean verify
+revision="$(git rev-parse HEAD)"
+image=pipesor-recommendation-service:local-ci
+docker build --platform linux/amd64 --build-arg "VCS_REF=$revision" --tag "$image" .
+GITHUB_SHA="$revision" python3 tools/check_image.py "$image"
+```
+
+Lefthook installs the same commitlint configuration used by CI on the local `commit-msg` hook. The image check verifies user `10001:10001` and the expected OCI source and revision labels. It starts an isolated container with networking disabled and requires a Spring Boot startup failure for missing platform configuration. The check removes its container on exit.
+
+Only a successful push to `main` can publish. The shared workflow takes the exact tested image archive and checksum, verifies them and publishes that image to GHCR with `packages: write`. The technical tag is `ghcr.io/pipesor-org/pipesor-recommendation-service:sha-<commit>-<run>-<attempt>`. Use `ghcr.io/pipesor-org/pipesor-recommendation-service@sha256:<digest>` to identify a candidate for delivery. The schema-version-1 `candidate.json` records the image, digest, source SHA and original CI run/attempt. The transfer artifact lasts one day, test reports last 14 days, and the candidate manifest lasts 90 days. Use **Re-run all jobs** after a publication failure because the image tag and artifacts include the run attempt.
+
+[Release candidate](.github/workflows/release.yml) is manual and hard-disabled. It accepts an original successful main CI run and attempt or a published release manifest, the exact image digest and a repository issue/PR recording authorization. Release versions name the existing digest. RC is optional. Supply an explicit `X.Y.Z` before a stable 1.x base. Stable requires retained successful preprod evidence for the same digest.
+
+To plan locally with a retained candidate and its original CI attempt metadata:
+
+```bash
+GITHUB_REPOSITORY=pipesor-org/pipesor-recommendation-service bun .github/delivery/release.mjs plan \
+  --candidate .delivery/candidate/candidate.json --run .delivery/candidate-run.json \
+  --kind rc --version 0.1.0
+```
+
+Choose a version appropriate to the candidate and current Git tags. The plan writes local files only.
+
+[Deploy dev](.github/workflows/deploy.yml) is manual and hard-disabled. It retains Pipeline's candidate, target and authorization inputs, including the earlier approved dev delivery and compatibility confirmation for rollback. The dev job has read-only GitHub access. Its Azure execution step has its own source guard pending separately authorized activation and authentication. Follow the [shared CI/CD guide](https://github.com/pipesor-org/pipesor-docs/blob/main/docs/development/cicd.md) and [IaC ADR 004](https://github.com/pipesor-org/pipesor-iac/blob/main/docs/adr-004-mvp-state-and-deployment.md) for activation prerequisites.
+
 ## Optional Codex setup
 
 Start Codex from this repository root so its [repository instructions](AGENTS.md) are discovered. Project configuration is in [.codex/config.toml](.codex/config.toml); [diagnostic_reviewer](.codex/agents/diagnostic-reviewer.toml) defines a focused reviewer. Review roles do not create separate sandbox permissions.
