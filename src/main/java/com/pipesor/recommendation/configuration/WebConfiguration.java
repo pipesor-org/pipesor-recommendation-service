@@ -35,7 +35,8 @@ class WebConfiguration {
         var cors = new CorsConfiguration();
         cors.setAllowedOrigins(List.of(origin));
         cors.setAllowedMethods(List.of("GET", "POST"));
-        cors.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Correlation-ID"));
+        // Idempotency-Key lets the dashboard retry a review submission safely (ReviewController).
+        cors.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Correlation-ID", "Idempotency-Key"));
         cors.setExposedHeaders(List.of("X-Correlation-ID"));
         cors.setAllowCredentials(false);
         cors.setMaxAge(Duration.ofMinutes(10));

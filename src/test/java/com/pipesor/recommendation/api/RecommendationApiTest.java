@@ -352,6 +352,25 @@ class RecommendationApiTest {
         assertThat(body.get("correlationId").asString()).isNotBlank();
     }
 
+    @Test
+    @Order(6)
+    void dashboardPreflightAllowsTheReviewIdempotencyKey() throws Exception {
+        var preflight = HTTP.send(HttpRequest.newBuilder(uri("/api/v1/diagnoses/" + UUID.randomUUID() + "/reviews"))
+                .timeout(Duration.ofSeconds(10)).method("OPTIONS", HttpRequest.BodyPublishers.noBody())
+                .header("Origin", "http://localhost:5173").header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", "authorization,content-type,idempotency-key").build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(preflight.statusCode()).isEqualTo(200);
+        assertThat(preflight.headers().firstValue("Access-Control-Allow-Origin")).contains("http://localhost:5173");
+        assertThat(preflight.headers().firstValue("Access-Control-Allow-Headers").orElse("").toLowerCase())
+                .contains("idempotency-key");
+        var foreign = HTTP.send(HttpRequest.newBuilder(uri("/api/v1/diagnoses/" + UUID.randomUUID() + "/reviews"))
+                .timeout(Duration.ofSeconds(10)).method("OPTIONS", HttpRequest.BodyPublishers.noBody())
+                .header("Origin", "https://evil.example").header("Access-Control-Request-Method", "POST").build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(foreign.statusCode()).isEqualTo(403);
+    }
+
     private URI uri(String path) {
         return URI.create("http://127.0.0.1:" + port + path);
     }
