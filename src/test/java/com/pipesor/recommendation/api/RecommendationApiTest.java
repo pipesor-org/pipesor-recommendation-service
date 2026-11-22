@@ -239,6 +239,21 @@ class RecommendationApiTest {
             assertThat(entry.has("reviewer")).isFalse();
             assertThat(entry.has("comment")).isFalse();
         });
+
+        // Notes are optional for confirmations and corrections, may span lines, and a rejection must justify itself.
+        PEERS.pipeline = request -> entitlement(FIXTURE_INCIDENT, FIXTURE_EXECUTION, "456", List.of("VIEW", "OPERATE"));
+        var corrected = post(path, session, """
+                {"expectedRevision":1,"decision":"CORRECTED","actualCause":"The runner image lacked the tool."}""");
+        assertThat(corrected.statusCode()).isEqualTo(200);
+        assertThat(JSON.readTree(corrected.body()).at("/history/1/comment").isNull()).isTrue();
+        problem(post(path, session, """
+                {"expectedRevision":2,"decision":"REJECTED"}"""), 400, "invalid_review");
+        problem(post(path, session, """
+                {"expectedRevision":2,"decision":"REJECTED","comment":"Bell \\u0007 character"}"""), 400, "invalid_review");
+        var rejected = post(path, session, """
+                {"expectedRevision":2,"decision":"REJECTED","comment":"First line\\r\\nSecond line"}""");
+        assertThat(rejected.statusCode()).isEqualTo(200);
+        assertThat(JSON.readTree(rejected.body()).at("/history/2/comment").asString()).isEqualTo("First line\nSecond line");
     }
 
     @Test

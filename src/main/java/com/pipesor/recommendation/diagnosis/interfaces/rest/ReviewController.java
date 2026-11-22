@@ -123,7 +123,8 @@ public class ReviewController {
             }
             var decision = ReviewStore.Decision.valueOf(tree.path("decision").asString(""));
             int revision = tree.get("expectedRevision").asInt();
-            String comment = text(tree.get("comment"), false);
+            // Notes are optional and may span lines; only a rejection without an alternative cause must justify itself.
+            String comment = note(tree.get("comment"), decision != ReviewStore.Decision.REJECTED);
             String cause = text(tree.get("actualCause"), decision != ReviewStore.Decision.CORRECTED);
             String corrected = text(tree.get("correctedRecommendation"), true);
             if (revision < 0 || (decision != ReviewStore.Decision.CORRECTED && (cause != null || corrected != null))) {
@@ -133,6 +134,18 @@ public class ReviewController {
         } catch (RuntimeException failure) {
             throw new ApiProblem(400, "invalid_review");
         }
+    }
+
+    /** Reviewer notes: like {@link #text} but line breaks are allowed (CRLF normalized to LF). */
+    private static String note(JsonNode node, boolean optional) {
+        if (optional && (node == null || node.isNull() || node.isString() && node.asString().isBlank())) return null;
+        if (node == null || !node.isString()) throw new IllegalArgumentException();
+        String value = node.asString().replace("\r\n", "\n").strip();
+        if (value.isBlank() || value.length() > 1500
+                || value.chars().anyMatch(c -> Character.isISOControl(c) && c != '\n')) {
+            throw new IllegalArgumentException();
+        }
+        return value;
     }
 
     private static String text(JsonNode node, boolean optional) {
