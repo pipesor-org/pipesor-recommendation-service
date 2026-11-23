@@ -33,11 +33,10 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: read
+permissions: {}
 
 concurrency:
-  group: recommendation-release
+  group: release
   cancel-in-progress: false
 
 jobs:
@@ -50,43 +49,21 @@ jobs:
       contents: write
       actions: read
       deployments: read
-    env:
-      RELEASE_ENABLED: ${{ vars.RELEASE_ENABLED }}
-      CONFIRM_IMAGE: ${{ inputs.confirm_image }}
-      AUTHORIZATION_REF: ${{ inputs.authorization_ref }}
-      CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
-      CANDIDATE_RUN_ATTEMPT: ${{ inputs.candidate_run_attempt }}
-      CANDIDATE_RELEASE: ${{ inputs.candidate_release }}
-      RELEASE_KIND: ${{ inputs.kind }}
-      REQUESTED_VERSION: ${{ inputs.version }}
-      GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - uses: pipesor-org/pipesor-ci/actions/release@7b037de869a7e0b192ad20cd5532cf7a036a164b # v1.0.0
         with:
-          bun-version-file: package.json
-      - run: bun install --frozen-lockfile
-      - name: Get retained candidate and original CI attempt evidence
-        run: |
-          test "${ACT:-}" != 'true'
-          python3 .github/delivery/deployment.py fetch \
-            --candidate .delivery/candidate/candidate.json \
-            --run .delivery/candidate-run.json \
-            --output .delivery/release-fetch.json
-      - name: Publish a name for the existing digest, never rebuild
-        run: >-
-          bun .github/delivery/release.mjs publish --candidate .delivery/candidate/candidate.json
-          --run .delivery/candidate-run.json --kind "$RELEASE_KIND"
-          --version "$REQUESTED_VERSION"
-      - name: Preserve the release plan even on partial publication
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: release-plan-${{ github.run_id }}-${{ github.run_attempt }}
-          path: .delivery/release/
-          if-no-files-found: ignore
-          retention-days: 90
+          mode: publish
+          kind: ${{ inputs.kind }}
+          version: ${{ inputs.version }}
+          candidate-run-id: ${{ inputs.candidate_run_id }}
+          candidate-run-attempt: ${{ inputs.candidate_run_attempt }}
+          candidate-release: ${{ inputs.candidate_release }}
+          confirm-image: ${{ inputs.confirm_image }}
+          authorization-ref: ${{ inputs.authorization_ref }}
+          release-enabled: ${{ vars.RELEASE_ENABLED }}
+          github-token: ${{ github.token }}

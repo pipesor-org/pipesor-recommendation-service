@@ -5,14 +5,10 @@
   "packageManager": "bun@1.4.4",
   "scripts": {
     "setup:hooks": "lefthook install",
-    "commitlint": "bun ./node_modules/@commitlint/cli/cli.js",
-    "test:release": "bun test ./.github/delivery/release.test.mjs"
+    "commitlint": "bun ./node_modules/@commitlint/cli/cli.js"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.4",
-    "@commitlint/config-conventional": "21.2.4",
-    "@commitlint/load": "21.2.4",
-    "@commitlint/parse": "21.2.3",
-    "semver": "7.8.6"
+    "@commitlint/config-conventional": "21.2.4"
   }
 }
