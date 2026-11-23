@@ -1,0 +1,6 @@
+# Reviewed exceptions for the shared image assurance gate (pipesor-ci). Each entry needs a statement,
+# a tracking issue and an expiry; remove it in the change that fixes the finding.
+vulnerabilities:
+  - id: CVE-2026-109518
+    statement: apt in the pinned eclipse-temurin base image; refresh the base digest (issue #24).
+    expired_at: 2026-12-06

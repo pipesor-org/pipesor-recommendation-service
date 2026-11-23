@@ -7,94 +7,19 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: read
+permissions: {}
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  verify:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    outputs:
-      image: ${{ steps.image.outputs.image }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version-file: package.json
-      - name: Install commitlint
-        run: bun install --frozen-lockfile
-      - name: Check release planning and gates
-        run: bun run test:release
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: '3.14.8'
-      - name: Check delivery tooling
-        run: |
-          python -m unittest discover -s tools -p 'test_*.py' -v
-          python -m unittest discover -s .github/delivery -p 'test_*.py' -v
-      - name: Validate pull request squash message
-        if: github.event_name == 'pull_request'
-        env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: |
-          test -n "${PR_BODY//[[:space:]]/}"
-          printf '%s\n' "$PR_TITLE" | bun run commitlint
-          printf '%s\n\n%s\n' "$PR_TITLE" "$PR_BODY" | bun run commitlint
-      - name: Validate pull request commits
-        if: github.event_name == 'pull_request'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: bun run commitlint --from "$BASE_SHA" --to "$HEAD_SHA"
-      - name: Validate integrated commit
-        if: github.event_name == 'push'
-        run: bun run commitlint --last
-      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
-        with:
-          distribution: temurin
-          java-version: '25'
-          cache: ${{ env.ACT != 'true' && 'maven' || '' }}
-      - name: Compile, test with PostgreSQL and package
-        uses: pipesor-org/pipesor-workspace/actions/java-verify@c11b183f5248b708794192e6d6ce4d781ef340f5 # shared CI v1
-      - name: Build and check the candidate image
-        id: image
-        shell: bash
-        run: |
-          image="ghcr.io/${GITHUB_REPOSITORY,,}:sha-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          docker build --platform linux/amd64 --build-arg "VCS_REF=$GITHUB_SHA" --tag "$image" .
-          python tools/check_image.py "$image"
-          echo "image=$image" >> "$GITHUB_OUTPUT"
-      - name: Save the tested image for publication
-        if: github.event_name == 'push' && env.ACT != 'true'
-        env:
-          IMAGE: ${{ steps.image.outputs.image }}
-        run: |
-          docker save --output service-image.tar "$IMAGE"
-          sha256sum service-image.tar > service-image.tar.sha256
-      - name: Transfer the exact tested image
-        if: github.event_name == 'push' && env.ACT != 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: image-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            service-image.tar
-            service-image.tar.sha256
-          if-no-files-found: error
-          retention-days: 1
-          compression-level: 6
-
-  publish:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !github.event.act
-    needs: verify
-    uses: pipesor-org/pipesor-workspace/.github/workflows/publish-container.yml@c11b183f5248b708794192e6d6ce4d781ef340f5 # shared CI v1
+  ci:
+    uses: pipesor-org/pipesor-ci/.github/workflows/service-ci.yml@df3b5fc08bc631912ff34be9154aa27776472754 # v1.0.0
     permissions:
       contents: read
       packages: write
+    with:
+      java-version: '25'
+      verify-command: python3 -m unittest discover -s tools -p 'test_*.py' -v && ./mvnw -B -ntp clean verify
+      test-reports: target/surefire-reports/TEST-*.xml
