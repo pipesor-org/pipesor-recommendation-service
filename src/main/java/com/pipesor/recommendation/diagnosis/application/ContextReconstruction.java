@@ -7,6 +7,7 @@ import com.pipesor.recommendation.retrieval.domain.CorpusKind;
 import com.pipesor.recommendation.retrieval.domain.RetrievalQuery;
 
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * Rebuilds the diagnostic inputs from an admitted receipt only (no cross-schema reads).
@@ -16,17 +17,22 @@ import java.util.List;
  *   <li>Evidence: every admitted signal, in delivery order, with its stage, sanitized content and
  *       source locator.</li>
  *   <li>Retrieval query: the content of the single signal; for several signals, their contents in
- *       delivery order separated by a blank line, cut at {@value #MAX_QUERY_CHARS} characters.</li>
- *   <li>Corpus: authorized technical documentation only; {@code topK} = number of signals, at
- *       most {@value #MAX_TOP_K}.</li>
+ *       delivery order separated by a blank line, cut at {@value #MAX_QUERY_CHARS} characters. The
+ *       ISO-8601 timestamp that GitHub Actions prefixes to every log line is removed from the query
+ *       (not from the evidence): it carries no diagnostic meaning and dilutes the embedding.</li>
+ *   <li>Corpus: authorized technical documentation only; {@code topK} = {@value #TOP_K}.</li>
  *   <li>Scope and correlation id: the receipt's authorization scope and correlation id.</li>
  * </ul>
- * Single-signal inputs are identical to the ones the local owner-chain harness admitted, so its
- * admission fingerprints keep replaying.
+ * The query text, corpus and {@code topK} were selected on the evaluation's dev split (protocol
+ * section 6.1, pipesor-validation-scenarios results/2026-11-23-dev-retrieval-variants). They are part of
+ * the admission fingerprint, so a context admitted with the previous rules conflicts if it is delivered
+ * again (see docs/diagnosis-worker.md).
  */
 public final class ContextReconstruction {
     static final int MAX_QUERY_CHARS = 4000;
-    static final int MAX_TOP_K = 3;
+    static final int TOP_K = 3;
+    private static final Pattern LOG_LINE_TIMESTAMP =
+            Pattern.compile("(?m)^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?Z ?");
     private static final List<CorpusKind> CORPUS = List.of(CorpusKind.AUTHORIZED_TECHNICAL_DOCUMENTATION);
 
     private ContextReconstruction() { }
@@ -39,15 +45,19 @@ public final class ContextReconstruction {
         }
         var evidence = signals.stream().map(signal -> new Evidence(signal.evidenceId(), signal.originContextId(),
                 signal.stage(), signal.content(), signal.sourceLocator())).toList();
-        String text = signals.size() == 1 ? signals.getFirst().content()
-                : String.join("\n\n", signals.stream().map(AdmittedContext.Signal::content).toList());
+        String text = signals.size() == 1 ? queryText(signals.getFirst().content())
+                : String.join("\n\n", signals.stream().map(signal -> queryText(signal.content())).toList());
         try {
-            var query = new RetrievalQuery(context.correlationId(), truncate(text), context.scope(), CORPUS,
-                    Math.min(signals.size(), MAX_TOP_K));
+            var query = new RetrievalQuery(context.correlationId(), truncate(text), context.scope(), CORPUS, TOP_K);
             return new DiagnosticInput(context.contextId(), context.executionId(), context.incidentId(), query, evidence);
         } catch (IllegalArgumentException invalid) {
             throw new InvalidContext("admitted context cannot form a retrieval query");
         }
+    }
+
+    /** The signal content without the GitHub Actions timestamp at the start of each line. */
+    static String queryText(String content) {
+        return LOG_LINE_TIMESTAMP.matcher(content).replaceAll("");
     }
 
     private static String truncate(String text) {

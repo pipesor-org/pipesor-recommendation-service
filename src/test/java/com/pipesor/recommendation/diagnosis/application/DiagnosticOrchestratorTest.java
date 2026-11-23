@@ -77,4 +77,16 @@ class DiagnosticOrchestratorTest {
                     assertThat(failure).hasMessage("Invalid diagnostic hypothesis or citations");
                 });
     }
+
+    @Test
+    void retrievalScoresAreLoggedAsIdentifiersAndScoresOnly() {
+        var first = new KnowledgeMatch(UUID.fromString("00000000-0000-0000-0000-000000000001"), UUID.randomUUID(),
+                CorpusKind.AUTHORIZED_TECHNICAL_DOCUMENTATION, "secret title", "secret content", "provenance", 0.5361234);
+        var second = new KnowledgeMatch(UUID.fromString("00000000-0000-0000-0000-000000000002"), UUID.randomUUID(),
+                CorpusKind.AUTHORIZED_TECHNICAL_DOCUMENTATION, "t", "c", "p", 0.4);
+        String line = DiagnosticOrchestrator.scores(List.of(first, second));
+        assertThat(line).isEqualTo("[00000000-0000-0000-0000-000000000001:0.5361,00000000-0000-0000-0000-000000000002:0.4000]");
+        assertThat(line).doesNotContain("secret");
+        assertThat(DiagnosticOrchestrator.scores(List.of())).isEqualTo("[]");
+    }
 }

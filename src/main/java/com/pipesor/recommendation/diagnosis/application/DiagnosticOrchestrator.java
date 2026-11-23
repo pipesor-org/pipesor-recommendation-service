@@ -7,10 +7,12 @@ import com.pipesor.recommendation.retrieval.domain.RetrievalResult;
 
 import org.slf4j.LoggerFactory;
 
-import java.util.List;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /** Internal orchestration for a caller that has already authorized and sanitized the context. */
 public final class DiagnosticOrchestrator {
@@ -36,6 +38,10 @@ public final class DiagnosticOrchestrator {
             throw new IllegalStateException("Retrieval correlation mismatch");
         }
         List<KnowledgeMatch> matches = result instanceof RetrievalResult.Matches found ? found.matches() : List.of();
+        // Identifiers and scores only (no knowledge or evidence content), to calibrate a similarity threshold.
+        LOG.info("rag_retrieval contextId={} correlationId={} status={} topK={} matches={}", contextId,
+                query.correlationId(), result instanceof RetrievalResult.Matches ? "matches" : "no_match", query.topK(),
+                scores(matches));
         var hypothesis = inference.infer(signals, matches);
         if (hypothesis == null) throw reject("missing_hypothesis");
         if (empty(hypothesis.probableCause())) throw reject("blank_probable_cause");
@@ -48,6 +54,13 @@ public final class DiagnosticOrchestrator {
                 signals.stream().filter(signal -> hypothesis.evidenceIds().contains(signal.evidenceId())).toList(),
                 matches.stream().filter(match -> hypothesis.chunkIds().contains(match.chunkId()))
                         .map(match -> new Source(match.documentId(), match.chunkId(), match.provenance())).toList());
+    }
+
+    /** {@code [chunkId:score,...]} in retrieval order, scores with four decimals. */
+    static String scores(List<KnowledgeMatch> matches) {
+        return matches.stream()
+                .map(match -> match.chunkId() + ":" + String.format(Locale.ROOT, "%.4f", match.score()))
+                .collect(Collectors.joining(",", "[", "]"));
     }
 
     private static void validateCitations(List<UUID> cited, List<UUID> available, String kind) {
