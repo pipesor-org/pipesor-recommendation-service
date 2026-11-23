@@ -5,3 +5,8 @@
 *.key
 .DS_Store
 target/
+
+# Local tooling output
+node_modules/
+__pycache__/
+*.pyc
