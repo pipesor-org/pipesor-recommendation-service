@@ -55,14 +55,24 @@ the Correlation harness's raw-SQL shortcut:
 - evidence: every admitted signal in delivery order (id, origin context, stage, sanitized
   content, source locator);
 - retrieval query: the single signal's content; for several signals, their contents in delivery
-  order joined by a blank line and cut at 4000 characters (the RAG v1 limit);
-- corpus: `authorized_technical_documentation`; `topK` = number of signals, at most 3;
+  order joined by a blank line and cut at 4000 characters (the RAG v1 limit). The ISO-8601 timestamp
+  GitHub Actions prefixes to each log line is removed from the query only; the evidence keeps it;
+- corpus: `authorized_technical_documentation`; `topK` = 3;
 - authorization scope and correlation id: the receipt's.
 
-The harness only exercised single-signal receipts. The multi-signal rule above is a
-conservative choice of this service: every signal still reaches inference and citation
-validation; only the RAG query text is bounded. Single-signal inputs equal the harness's, so
-admissions it created keep replaying.
+The query construction, corpus and `topK` were selected on the evaluation's dev split by the
+preregistered rules of the
+[evaluation protocol](https://github.com/pipesor-org/pipesor-docs/blob/main/docs/research/protocolo-evaluacion-oe3.md)
+(section 6.1); the measurements and the decision are in
+[pipesor-validation-scenarios](https://github.com/pipesor-org/pipesor-validation-scenarios/tree/main/results/2026-11-23-dev-retrieval-variants).
+No similarity threshold is applied. Each retrieval is logged at INFO as `rag_retrieval` with context id,
+correlation id, status, `topK` and `chunkId:score` pairs (no knowledge or evidence content) so a threshold
+can be calibrated on real queries.
+
+The multi-signal rule is a conservative choice of this service: every signal still reaches inference
+and citation validation; only the RAG query text is bounded. The query, corpus and `topK` are part of
+the admission fingerprint: a context admitted under the previous rules (`topK` = number of signals and
+timestamps kept) fails with `admission_conflict` if it is delivered again, and keeps its stored diagnosis.
 
 ## Configuration
 
