@@ -55,7 +55,7 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: pipesor-org/pipesor-ci/actions/release@df3b5fc08bc631912ff34be9154aa27776472754 # v1.0.0
+      - uses: pipesor-org/pipesor-ci/actions/release@43c70cde7f1eac01361032a69facdeb24107197c # v1.1.0
         with:
           mode: publish
           kind: ${{ inputs.kind }}

@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   ci:
-    uses: pipesor-org/pipesor-ci/.github/workflows/service-ci.yml@df3b5fc08bc631912ff34be9154aa27776472754 # v1.0.0
+    uses: pipesor-org/pipesor-ci/.github/workflows/service-ci.yml@43c70cde7f1eac01361032a69facdeb24107197c # v1.1.0
     permissions:
       contents: read
       packages: write

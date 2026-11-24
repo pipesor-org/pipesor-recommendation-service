@@ -1,0 +1,27 @@
+name: Registry retention
+
+# Weekly GHCR retention for this repository's image (pipesor-ci): dry run unless the repository
+# variable REGISTRY_RETENTION_DELETE is 'true'. PRs that change this workflow get a dry run only.
+
+on:
+  schedule:
+    - cron: '23 6 * * 1'
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths: [.github/workflows/registry-retention.yml]
+
+permissions: {}
+
+concurrency:
+  group: registry-retention-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  retention:
+    uses: pipesor-org/pipesor-ci/.github/workflows/registry-retention.yml@43c70cde7f1eac01361032a69facdeb24107197c # v1.1.0
+    permissions:
+      contents: read
+      packages: write
+    with:
+      delete: ${{ github.event_name != 'pull_request' && vars.REGISTRY_RETENTION_DELETE == 'true' }}
