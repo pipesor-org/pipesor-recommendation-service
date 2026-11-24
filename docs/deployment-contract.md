@@ -54,7 +54,7 @@ Documented fact: Documented synchronous REST/HTTPS context from correlation and 
 
 | Category | Known requirement and supplier | Status/source |
 |---|---|---|
-| Nonsecret integration settings | PostgreSQL diagnosis connection target, RAG address, approved Azure OpenAI HTTPS account origin, and chat deployment name. PD-026 permits `pipesor-dev-diagnostics` on GPT-4o `2024-11-20` for local synthetic DEV verification. | Default model selection and live cloud identities remain pending. |
+| Nonsecret integration settings | PostgreSQL diagnosis connection target, RAG address, approved Azure OpenAI HTTPS account origin, and chat deployment name. ADR-026 selects `pipesor-dev-diagnostics-luna` (gpt-6-luna `2026-09-22`) as the diagnosis deployment, the default and the one configured in Azure dev; PD-026 had permitted `pipesor-dev-diagnostics` (GPT-4o `2024-11-20`) only for the DEV smoke test. | Default model selection and live cloud identities remain pending. |
 | Secret/authentication requirements | Foundry Entra-only access is selected for the managed foundation; exact inference grants, PostgreSQL/internal-call authentication material and suppliers are unspecified (PD-027/035). Human/API authorization and workflow access remain pending PD-007/034/036; the read-only GitHub App does not authorize workflow API access. | Unknown except explicitly documented mechanisms; PD-027/035. Secret storage is intentionally undecided. |
 | Delivery of values | Proposed: backend maintainers define/validate the required configuration interface; the authorized environment/integration owners supply approved values through the agreed IaC handoff. | Proposal, PD-035; specific people/teams, rotation and distribution mechanism remain unknown. |
 
