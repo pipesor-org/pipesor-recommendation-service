@@ -6,12 +6,15 @@ import com.pipesor.recommendation.retrieval.domain.AuthorizationScope;
 
 import java.util.UUID;
 
-/** Binding rules between an admitted version, its receipt and the owner's current entitlement. */
-final class Bindings {
+/**
+ * Binding rules between an admitted version, its receipt and the owner's current entitlement. The
+ * incident read, the GitHub Actions report and the diagnosis summary publisher apply the same rule.
+ */
+public final class Bindings {
     private Bindings() { }
 
     /** The version was admitted from a receipt of exactly this incident and execution, under the same scope. */
-    static boolean admittedFor(AdmittedDiagnosis diagnosis, UUID incidentId, UUID executionId) {
+    public static boolean admittedFor(AdmittedDiagnosis diagnosis, UUID incidentId, UUID executionId) {
         var receipt = diagnosis.receipt();
         var output = diagnosis.output();
         return receipt != null && receipt.contextId().equals(output.contextId())

@@ -10,6 +10,7 @@ import com.pipesor.recommendation.shared.security.PlatformIds;
 import com.pipesor.recommendation.shared.security.SigningKey;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -28,13 +29,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 
 /**
  * Test-only peers on loopback: JWKS for Correlation, sessions and GitHub Actions, a Pipeline
- * entitlement resolver and a RAG endpoint. Simulated backends exist only in automated tests.
+ * entitlement resolver, Pipeline's diagnosis summary receiver and a RAG endpoint. Simulated
+ * backends exist only in automated tests.
  */
 final class PlatformFixture implements AutoCloseable {
+    private static final JsonMapper JSON = JsonMapper.builder().build();
     static final UUID TENANT = UUID.fromString("24c96be0-50f3-4064-b5e4-643088141ae8");
     final KeyPair correlation = rsa();
     final KeyPair session = rsa();
@@ -45,6 +49,9 @@ final class PlatformFixture implements AutoCloseable {
     final Map<String, Recorded> requests = new ConcurrentHashMap<>();
     volatile Function<Recorded, Reply> pipeline = request -> new Reply(503, "{}");
     volatile Function<Recorded, Reply> rag = request -> new Reply(503, "{}");
+    /** Diagnosis summary pushes in arrival order; the default reply acknowledges by echoing the request. */
+    final List<Push> summaries = new CopyOnWriteArrayList<>();
+    volatile Function<Push, Reply> summary = PlatformFixture::acknowledge;
 
     record Recorded(Map<String, List<String>> headers, String body) {
         String header(String name) {
@@ -54,6 +61,8 @@ final class PlatformFixture implements AutoCloseable {
     }
 
     record Reply(int status, String body) { }
+
+    record Push(String method, String path, Recorded request) { }
 
     PlatformFixture() throws IOException {
         var directory = Files.createTempDirectory("pipesor-recommendation-test");
@@ -68,6 +77,7 @@ final class PlatformFixture implements AutoCloseable {
         jwks("/jwks/github", github);
         server.createContext("/pipeline/internal/v1/diagnosis-read-entitlements", exchange -> answer(exchange, "pipeline"));
         server.createContext("/rag/internal/v1/retrieval/query", exchange -> answer(exchange, "rag"));
+        server.createContext("/pipeline/internal/v1/incidents/", this::receiveSummary);
         server.start();
     }
 
@@ -85,6 +95,23 @@ final class PlatformFixture implements AutoCloseable {
         requests.put(peer, recorded);
         var reply = ("pipeline".equals(peer) ? pipeline : rag).apply(recorded);
         write(exchange, reply.status(), reply.body());
+    }
+
+    private void receiveSummary(HttpExchange exchange) throws IOException {
+        var push = new Push(exchange.getRequestMethod(), exchange.getRequestURI().getPath(),
+                new Recorded(Map.copyOf(exchange.getRequestHeaders()),
+                        new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)));
+        summaries.add(push);
+        var reply = summary.apply(push);
+        write(exchange, reply.status(), reply.body());
+    }
+
+    private static Reply acknowledge(Push push) {
+        var body = JSON.readTree(push.request().body());
+        return new Reply(200, JSON.writeValueAsString(Map.of("incidentId", push.path().split("/")[5],
+                "diagnosisId", body.get("diagnosisId").asString(), "version", body.get("version").asInt(),
+                "reviewRevision", body.get("reviewRevision").asInt(), "status", body.get("status").asString(),
+                "applied", true)));
     }
 
     private static void write(HttpExchange exchange, int status, String body) throws IOException {

@@ -8,6 +8,10 @@ Every admitted correlated context gets a diagnosis without a human or harness ac
 row (`PENDING`) in one transaction. V7 back-fills a job for every receipt that existed before it
 and still has no admitted diagnosis.
 
+Admitting a new version also enqueues the incident's diagnosis summary for Pipeline in the same
+transaction (ADR-027, [diagnosis summaries](diagnosis-summaries.md)); replaying an existing
+admission does not.
+
 ## Claim, lease and settlement
 
 Each replica runs one `diagnosis-worker` thread that polls every `poll-interval`:
