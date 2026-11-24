@@ -194,6 +194,8 @@ shared [release action](https://github.com/pipesor-org/pipesor-ci/tree/main/acti
 candidate digest `vX.Y.Z[-rc.N]` with a GitHub Release, never rebuilding; stable requires retained preprod validation
 for the same digest. See the [shared CI/CD guide](https://github.com/pipesor-org/pipesor-docs/blob/main/docs/development/cicd.md).
 
+**Registry retention.** [Registry retention](.github/workflows/registry-retention.yml) runs weekly through the shared [pipesor-ci workflow](https://github.com/pipesor-org/pipesor-ci#registry-retention): it keeps every deployed or recently deployed digest (pipesor-iac `images.json` history), release digests, the newest and recent candidates and the children of kept image indexes, and reports the rest. It is a dry run until the repository variable `REGISTRY_RETENTION_DELETE` is `true`.
+
 ## Optional Codex setup
 
 Start Codex from this repository root so its [repository instructions](AGENTS.md) are discovered. Project configuration is in [.codex/config.toml](.codex/config.toml); [diagnostic_reviewer](.codex/agents/diagnostic-reviewer.toml) defines a focused reviewer. Review roles do not create separate sandbox permissions.
