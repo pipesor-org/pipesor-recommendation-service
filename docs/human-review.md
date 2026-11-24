@@ -28,5 +28,9 @@ corrected or rejected diagnosis. The review API replaced the former `/local-demo
 The incident diagnosis read (`GET /api/v1/incidents/{incidentId}/diagnosis`) exposes only
 revision, decision and timestamp of each review, not reviewer identity or free text.
 
+Each appended review also enqueues the incident's diagnosis summary for Pipeline in the same
+transaction (ADR-027); a replayed `Idempotency-Key` enqueues nothing. Pipeline's queue reflects the
+review after the next publisher poll; see [diagnosis summaries](diagnosis-summaries.md).
+
 Store-level behavior (idempotency, optimistic concurrency, concurrent writes) is covered by
 `ReviewLifecycleTest`; HTTP authorization by `RecommendationApiTest`.

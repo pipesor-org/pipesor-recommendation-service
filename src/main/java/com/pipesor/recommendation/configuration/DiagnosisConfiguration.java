@@ -4,20 +4,26 @@ import com.azure.core.credential.TokenCredential;
 import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.pipesor.recommendation.diagnosis.application.DiagnosticOrchestrator;
 import com.pipesor.recommendation.diagnosis.application.commandhandlers.DiagnoseAdmittedContextsHandler;
+import com.pipesor.recommendation.diagnosis.application.commandhandlers.PublishDiagnosisSummariesHandler;
 import com.pipesor.recommendation.diagnosis.application.ports.DiagnosisEntitlements;
 import com.pipesor.recommendation.diagnosis.application.ports.DiagnosisReadModel;
+import com.pipesor.recommendation.diagnosis.application.ports.DiagnosisSummaryPublisher;
 import com.pipesor.recommendation.diagnosis.application.queryhandlers.GitHubActionsReportQueryHandler;
 import com.pipesor.recommendation.diagnosis.application.queryhandlers.IncidentDiagnosisQueryHandler;
 import com.pipesor.recommendation.diagnosis.application.queryhandlers.ReviewAccessHandler;
 import com.pipesor.recommendation.diagnosis.infrastructure.AzureOpenAiInference;
+import com.pipesor.recommendation.diagnosis.infrastructure.DiagnosisSummaryProperties;
+import com.pipesor.recommendation.diagnosis.infrastructure.DiagnosisSummaryWorker;
 import com.pipesor.recommendation.diagnosis.infrastructure.DiagnosisWorker;
 import com.pipesor.recommendation.diagnosis.infrastructure.DiagnosisWorkerProperties;
 import com.pipesor.recommendation.diagnosis.infrastructure.InferenceProperties;
 import com.pipesor.recommendation.diagnosis.infrastructure.persistence.JdbcAdmittedContexts;
 import com.pipesor.recommendation.diagnosis.infrastructure.persistence.JdbcDiagnosisJobs;
 import com.pipesor.recommendation.diagnosis.infrastructure.persistence.JdbcDiagnosisReadModel;
+import com.pipesor.recommendation.diagnosis.infrastructure.persistence.JdbcDiagnosisSummaryOutbox;
 import com.pipesor.recommendation.diagnosis.infrastructure.pipeline.PipelineClientProperties;
 import com.pipesor.recommendation.diagnosis.infrastructure.pipeline.PipelineDiagnosisEntitlements;
+import com.pipesor.recommendation.diagnosis.infrastructure.pipeline.PipelineDiagnosisSummaryPublisher;
 import com.pipesor.recommendation.diagnosis.review.PersistedDiagnosticWorkflow;
 import com.pipesor.recommendation.diagnosis.review.ReviewStore;
 import com.pipesor.recommendation.receipt.ReceiptStore;
@@ -33,11 +39,15 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import javax.sql.DataSource;
+import java.time.Clock;
 
-/** Explicit composition of receipts, automatic diagnosis, inference and the human/report read side. */
+/**
+ * Explicit composition of receipts, automatic diagnosis, inference, the human/report read side and
+ * the diagnosis summaries projected into Pipeline.
+ */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties({InferenceProperties.class, DiagnosisWorkerProperties.class, ReceiptProperties.class,
-        PipelineClientProperties.class})
+        PipelineClientProperties.class, DiagnosisSummaryProperties.class})
 class DiagnosisConfiguration {
 
     @Bean
@@ -90,6 +100,33 @@ class DiagnosisConfiguration {
     @Bean
     DiagnosisReadModel diagnosisReadModel(JdbcTemplate jdbc, PlatformTransactionManager transactionManager) {
         return new JdbcDiagnosisReadModel(jdbc, transactionManager);
+    }
+
+    @Bean
+    DiagnosisSummaryPublisher diagnosisSummaryPublisher(ServiceEndpoints endpoints, TransportPolicy transport,
+            WorkloadTokens tokens, PipelineClientProperties pipeline) {
+        return new PipelineDiagnosisSummaryPublisher(
+                transport.resolve(endpoints.pipeline(), PipelineDiagnosisSummaryPublisher.INCIDENTS_PATH), tokens,
+                pipeline.timeout());
+    }
+
+    @Bean
+    PublishDiagnosisSummariesHandler publishDiagnosisSummariesHandler(JdbcTemplate jdbc, DiagnosisReadModel diagnoses,
+            DiagnosisSummaryPublisher publisher, DiagnosisSummaryProperties summary, PipelineClientProperties pipeline) {
+        if (summary.lease().compareTo(pipeline.timeout().multipliedBy(2)) < 0) {
+            throw new IllegalArgumentException(
+                    "pipesor.diagnosis-summary.lease must be at least twice pipesor.pipeline.timeout");
+        }
+        return new PublishDiagnosisSummariesHandler(new JdbcDiagnosisSummaryOutbox(jdbc), diagnoses, publisher,
+                new PublishDiagnosisSummariesHandler.Policy(summary.batchSize(), summary.lease(),
+                        summary.initialBackoff(), summary.maxBackoff()), Clock.systemUTC());
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "pipesor.diagnosis-summary.enabled", havingValue = "true", matchIfMissing = true)
+    DiagnosisSummaryWorker diagnosisSummaryWorker(PublishDiagnosisSummariesHandler handler,
+            DiagnosisSummaryProperties summary) {
+        return new DiagnosisSummaryWorker(handler, summary.pollInterval(), summary.batchSize());
     }
 
     @Bean

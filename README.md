@@ -8,13 +8,17 @@ The service runs as one image with profiles `local` and `azure`:
 - diagnoses every admitted context automatically through a durable, replica-safe worker
   (RAG retrieval + Azure OpenAI inference + citation validation), see
   [diagnosis worker](docs/diagnosis-worker.md);
-- serves the dashboard's diagnosis and review APIs and the GitHub Actions report.
+- serves the dashboard's diagnosis and review APIs and the GitHub Actions report;
+- pushes each incident's diagnosis summary (status, review revision, bounded probable cause) to
+  Pipeline's incident queue through a transactional outbox (ADR-027), see
+  [diagnosis summaries](docs/diagnosis-summaries.md).
 
 ## Documentation
 
 - [Documentation baseline](docs/documentation-baseline.md): audited source revisions, evidence limits and adoption after merge.
 
 - [Diagnosis worker](docs/diagnosis-worker.md): automatic diagnosis, leases, backoff and input reconstruction.
+- [Diagnosis summaries](docs/diagnosis-summaries.md): outbox and publisher feeding Pipeline's incident queue (ADR-027).
 - [Human review](docs/human-review.md): review rules and API.
 - [Architecture](docs/architecture.md): service boundaries, integration context and current sources in `pipesor-docs`.
 - [Deployment contract](docs/deployment-contract.md): development baseline, delivery requirements and unresolved contracts.
@@ -53,6 +57,21 @@ one issuer-routing decoder sends GitHub Actions tokens (`https://token.actions.g
 to their own decoder and every other token to the platform decoder; each route accepts only its
 own token kind.
 
+### Outbound calls
+
+| Call | Authentication | Notes |
+|---|---|---|
+| RAG `POST /internal/v1/retrieval/query` | workload token, target `rag`, role `Rag.Query` | RAG v1; budget `PIPESOR_RAG_TIMEOUT` |
+| Pipeline `POST /internal/v1/diagnosis-read-entitlements` | workload token, target `pipeline`, role `Recommendation.DiagnosisEntitlements.Resolve`, plus the caller's session in `X-Pipesor-Subject-Token` | every diagnosis/review request, see below |
+| Pipeline `PUT /internal/v1/incidents/{incidentId}/diagnosis-summary` | workload token, target `pipeline`, role `Recommendation.DiagnosisSummaries.Write`, no subject token | outbox publisher (ADR-027); `400`/`409` dropped, anything else retried with backoff, see [diagnosis summaries](docs/diagnosis-summaries.md) |
+| Foundry/Azure OpenAI chat completions | `DefaultAzureCredential` | see inference below |
+
+Both Pipeline calls are bounded by `pipesor.pipeline.timeout` (`5s`, whole exchange) and never
+follow redirects. **Deployment prerequisite:** Pipeline's trust configuration must grant role
+`Recommendation.DiagnosisSummaries.Write` to the trusted `recommendation` caller; until then the
+summary pushes are refused with `403`, retried at the maximum backoff and the queue shows every
+incident as `ABSENT`.
+
 **Pipeline entitlement (coordination point).** Recommendation calls Pipeline
 `POST /internal/v1/diagnosis-read-entitlements` with its workload token (role
 `Recommendation.DiagnosisEntitlements.Resolve`) and the caller's session token in
@@ -83,6 +102,7 @@ Names follow the [runtime manifest](https://github.com/pipesor-org/pipesor-docs/
 | `PIPESOR_INFERENCE_TIMEOUT`, `PIPESOR_INFERENCE_MAX_COMPLETION_TOKENS` | `60s`, `1024` |
 | `PIPESOR_RAG_TIMEOUT` | total RAG budget, ≤ 15 s (ADR-021: at most two retries for transport, `429`, `5xx`, honoring `Retry-After`) |
 | `PIPESOR_DIAGNOSIS_WORKER_ENABLED` | `true` |
+| `PIPESOR_DIAGNOSIS_SUMMARY_ENABLED` | `true`; the summary publisher (poll `2s`, batch `20`, lease `30s`, backoff `2s` doubling to `10m`, properties `pipesor.diagnosis-summary.*`) |
 
 Inference uses `DefaultAzureCredential` (developer `az login` locally, managed identity in
 Azure) with scope `https://ai.azure.com/.default`. The system prompt and response schema are
@@ -90,9 +110,11 @@ versioned in code (`AzureOpenAiInference.PROMPT_VERSION`); each admitted hypothe
 deployment, provider model version and prompt version. There is no fake inference in the
 application; tests replace it with test-only beans.
 
-Flyway migrates schema `diagnosis` at startup (`V1`–`V7`). V5 relaxes the signal locator CHECK
+Flyway migrates schema `diagnosis` at startup (`V1`–`V9`). V5 relaxes the signal locator CHECK
 to the protected evidence 2.2 shape, V6 adds indexed `context_id`/`execution_id` to
-`diagnosis.diagnoses`, V7 creates the worker's job table.
+`diagnosis.diagnoses`, V7 creates the worker's job table, V8 makes review comments optional
+except for rejections, V9 creates `diagnosis.incident_summary_outbox` and enqueues every admitted
+incident and execution once.
 
 ### Local run
 

@@ -102,6 +102,7 @@ class RecommendationApiTest {
         registry.add("pipesor.endpoints.pipeline", () -> PEERS.base() + "/pipeline");
         registry.add("pipesor.dashboard-origin", () -> "http://localhost:5173");
         registry.add("pipesor.diagnosis-worker.poll-interval", () -> "200ms");
+        registry.add("pipesor.diagnosis-summary.poll-interval", () -> "200ms");
         PEERS.rag = request -> new PlatformFixture.Reply(200, """
                 {"contract_version":"1.0","correlation_id":"%s","status":"no_match","matches":[]}
                 """.formatted(JSON.readTree(request.body()).get("correlation_id").asString()));
@@ -254,6 +255,35 @@ class RecommendationApiTest {
                 {"expectedRevision":2,"decision":"REJECTED","comment":"First line\\r\\nSecond line"}""");
         assertThat(rejected.statusCode()).isEqualTo(200);
         assertThat(JSON.readTree(rejected.body()).at("/history/2/comment").asString()).isEqualTo("First line\nSecond line");
+
+        // ADR-027: the outbox pushes the latest review to Pipeline's incident queue projection.
+        var push = awaitSummary(FIXTURE_INCIDENT, "REJECTED");
+        assertThat(push.method()).isEqualTo("PUT");
+        assertThat(push.request().header("X-Correlation-ID")).isEqualTo("corr-r2");
+        assertThat(push.request().header("X-Pipesor-Subject-Token")).isNull();
+        workloadToken(push.request().header("Authorization"), "pipeline", "Recommendation.DiagnosisSummaries.Write");
+        var summary = JSON.readTree(push.request().body());
+        assertThat(summary.get("diagnosisId").asString()).isEqualTo(admittedDiagnosis.toString());
+        assertThat(summary.get("version").asInt()).isEqualTo(2);
+        assertThat(summary.get("executionId").asString()).isEqualTo(FIXTURE_EXECUTION.toString());
+        assertThat(summary.get("pipelineId").asString()).isEqualTo(PIPELINE.toString());
+        assertThat(summary.get("githubRepositoryId").asString()).isEqualTo("456");
+        assertThat(summary.get("reviewRevision").asInt()).isEqualTo(3);
+        assertThat(summary.get("probableCause").asString()).isEqualTo("Dependency resolution failed (inferred).");
+    }
+
+    private static PlatformFixture.Push awaitSummary(UUID incident, String status) throws Exception {
+        String path = "/pipeline/internal/v1/incidents/" + incident + "/diagnosis-summary";
+        Instant deadline = Instant.now().plus(Duration.ofSeconds(30));
+        while (Instant.now().isBefore(deadline)) {
+            for (var push : PEERS.summaries) {
+                if (push.path().equals(path) && status.equals(JSON.readTree(push.request().body()).get("status").asString())) {
+                    return push;
+                }
+            }
+            Thread.sleep(200);
+        }
+        throw new AssertionError("No " + status + " diagnosis summary pushed for " + incident);
     }
 
     @Test

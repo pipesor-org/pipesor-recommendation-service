@@ -100,6 +100,7 @@ public final class ReviewStore {
                         version = row.getInt("version");
                     }
                 }
+                enqueueSummary(connection, output.incidentId(), output.executionId());
                 connection.commit();
                 return new Admission(id, version, output);
             } catch (SQLException | RuntimeException failure) {
@@ -186,6 +187,7 @@ public final class ReviewStore {
                     insert.setString(9, submission.correctedRecommendation());
                     insert.executeUpdate();
                 }
+                enqueueSummary(connection, current.original().incidentId(), current.original().executionId());
                 var result = read(connection, current.diagnosticId(), false);
                 connection.commit();
                 return result;
@@ -194,6 +196,23 @@ public final class ReviewStore {
                 if (failure instanceof SQLException sql && "23505".equals(sql.getSQLState())) throw new Conflict();
                 throw failure;
             }
+        }
+    }
+
+    /**
+     * Records in the caller's transaction that the incident's diagnosis summary changed (ADR-027). A
+     * pending row gets a new generation, so an in-flight push of the previous one cannot delete it,
+     * and becomes due now; its lease is kept, so no other replica claims it during that push.
+     */
+    private static void enqueueSummary(Connection connection, UUID incidentId, UUID executionId) throws SQLException {
+        try (var upsert = connection.prepareStatement("""
+                INSERT INTO diagnosis.incident_summary_outbox AS o (incident_id, execution_id) VALUES (?, ?)
+                ON CONFLICT (incident_id, execution_id) DO UPDATE
+                SET generation = o.generation + 1, attempts = 0, next_attempt_at = clock_timestamp(), last_failure = NULL
+                """)) {
+            upsert.setObject(1, Objects.requireNonNull(incidentId));
+            upsert.setObject(2, Objects.requireNonNull(executionId));
+            upsert.executeUpdate();
         }
     }
 

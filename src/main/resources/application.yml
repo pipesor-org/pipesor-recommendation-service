@@ -71,6 +71,14 @@ pipesor:
     initial-backoff: 30s
     max-backoff: 30m
     max-attempts: 8
+  # ADR-027: pushes each incident's diagnosis summary to Pipeline from the transactional outbox.
+  diagnosis-summary:
+    enabled: ${PIPESOR_DIAGNOSIS_SUMMARY_ENABLED:true}
+    poll-interval: 2s
+    batch-size: 20
+    lease: 30s
+    initial-backoff: 2s
+    max-backoff: 10m
 
 ---
 spring:
