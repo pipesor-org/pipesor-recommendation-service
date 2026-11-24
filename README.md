@@ -98,7 +98,7 @@ Names follow the [runtime manifest](https://github.com/pipesor-org/pipesor-docs/
 | `PIPESOR_DATABASE_URL`, `_USERNAME`, `_PASSWORD` | PostgreSQL (`azure`: passwordless Entra plugin, no password) |
 | `PIPESOR_DASHBOARD_ORIGIN` | CORS origin for `/api/v1/**` |
 | `PIPESOR_INFERENCE_ENDPOINT` | Foundry/Azure OpenAI account origin, e.g. `https://ai-pipesor-dev-04f339b7.services.ai.azure.com` (required under `azure`; `local` defaults to that dev account) |
-| `PIPESOR_INFERENCE_DEPLOYMENT` | chat deployment, default `pipesor-dev-diagnostics` |
+| `PIPESOR_INFERENCE_DEPLOYMENT` | chat deployment, default `pipesor-dev-diagnostics-luna` (gpt-6-luna `2026-09-22`, ADR-026) |
 | `PIPESOR_INFERENCE_TIMEOUT`, `PIPESOR_INFERENCE_MAX_COMPLETION_TOKENS` | `60s`, `1024` |
 | `PIPESOR_RAG_TIMEOUT` | total RAG budget, ≤ 15 s (ADR-021: at most two retries for transport, `429`, `5xx`, honoring `Retry-After`) |
 | `PIPESOR_DIAGNOSIS_WORKER_ENABLED` | `true` |

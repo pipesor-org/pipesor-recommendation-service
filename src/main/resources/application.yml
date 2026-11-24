@@ -57,7 +57,7 @@ pipesor:
     timeout: 5s
   inference:
     endpoint: ${PIPESOR_INFERENCE_ENDPOINT}
-    deployment: ${PIPESOR_INFERENCE_DEPLOYMENT:pipesor-dev-diagnostics}
+    deployment: ${PIPESOR_INFERENCE_DEPLOYMENT:pipesor-dev-diagnostics-luna}
     scope: https://ai.azure.com/.default
     timeout: ${PIPESOR_INFERENCE_TIMEOUT:60s}
     max-completion-tokens: ${PIPESOR_INFERENCE_MAX_COMPLETION_TOKENS:1024}
